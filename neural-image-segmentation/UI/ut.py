@@ -15,11 +15,11 @@ class Ui_MainWindow(object):
     def __init__(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
         MainWindow.showMaximized()
-        MainWindow.setMinimumSize(1200, 700)
+        MainWindow.setMinimumSize(1100, 750)
         self.centralWidget = QtWidgets.QWidget(MainWindow)
         self.centralWidget.setObjectName("centralWidget")
         self.verticalLayoutWidget = QtWidgets.QWidget(self.centralWidget)
-        self.verticalLayoutWidget.setGeometry(QtCore.QRect(20, 10, 161, 81))
+        self.verticalLayoutWidget.setGeometry(QtCore.QRect(20, 10, 161, 130))
         self.verticalLayoutWidget.setObjectName("verticalLayoutWidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.verticalLayoutWidget)
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)

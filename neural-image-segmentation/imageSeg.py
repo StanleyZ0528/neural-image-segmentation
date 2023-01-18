@@ -5,7 +5,7 @@ import numpy as np
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PIL import Image, ImageQt
 from UI.ut import Ui_MainWindow
-from unet.unet_utils import gamma_correction
+from unet.unet_utils import gamma_correction, unet_predict
 from postImgProc.utils import *
 from postImgProc.alg import *
 
@@ -51,11 +51,12 @@ class ImgSeg(QtWidgets.QMainWindow):
         if self.file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
             # conduct the process
             gamma_image = gamma_correction(self.file_name)
-            result = gamma_image
-            # more process ...
+            print(gamma_image.shape)
+            print(gamma_image)
+            result = unet_predict(gamma_image)
 
             # display the result
-            self.display_image(result)
+            self.display_img(result.astype(np.uint8))
         else:
             msg = QtWidgets.QMessageBox(self)
             msg.setWindowTitle("Failed")
