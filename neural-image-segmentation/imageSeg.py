@@ -2,7 +2,7 @@
 import warnings
 import sys
 import numpy as np
-from PyQt5 import QtWidgets, QtCore, QtGui
+from PyQt6 import QtWidgets, QtCore, QtGui
 from PIL import Image, ImageQt
 from UI.ut import Ui_MainWindow
 from unet.unet_utils import gamma_correction
@@ -11,8 +11,7 @@ from unet.unet_utils import gamma_correction
 class ImgSeg(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.ui = Ui_MainWindow()
-        self.ui.setupUi(self)
+        self.ui = Ui_MainWindow(self)
         self.ui.toolButton.clicked.connect(self.tool_button_callback)
         self.ui.pushButton.clicked.connect(self.process_button_callback)
         self.ui.clearButton.clicked.connect(self.clear_button_callback)
@@ -22,7 +21,7 @@ class ImgSeg(QtWidgets.QMainWindow):
     def tool_button_callback(self):
         self.file_name = QtWidgets.QFileDialog.getOpenFileName(self)[0]
         self.ui.textBrowser.setText(self.file_name)
-        if self.file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tiff', '.bmp')):
+        if self.file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
             pix = QtGui.QPixmap(self.file_name)
             item = QtWidgets.QGraphicsPixmapItem(pix)
             scene = QtWidgets.QGraphicsScene(self)
@@ -35,7 +34,7 @@ class ImgSeg(QtWidgets.QMainWindow):
             msg.show()
 
     def process_button_callback(self):
-        if self.file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tiff', '.bmp')):
+        if self.file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
             # conduct the process
             gamma_image = gamma_correction(self.file_name)
             result = gamma_image
@@ -64,4 +63,4 @@ class ImgSeg(QtWidgets.QMainWindow):
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     myapp = ImgSeg()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

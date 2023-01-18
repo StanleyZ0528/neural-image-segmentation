@@ -8,6 +8,8 @@ import math
 import copy
 from fil_finder import FilFinder2D, Filament2D
 import astropy.units as u
+axon_color = np.array([255, 129, 31])
+cell_color = np.array([255, 0, 255])
 
 
 def readImg(path):
@@ -20,17 +22,21 @@ def readImg(path):
 
 
 def separate_axon_and_cell(img):
-    axon_filter = cv2.inRange(img, np.array([119, 11, 32]), np.array([119, 11, 32]))
-    cell_filter = cv2.inRange(img, np.array([244, 35, 232]), np.array([244, 35, 232]))
+    # Axon color: (119, 11, 32)
+    # axon_filter = cv2.inRange(img, np.array([119, 11, 32]), np.array([119, 11, 32]))
+    axon_filter = cv2.inRange(img, axon_color, axon_color)
+    # Cell color: (244, 35, 232)
+    # cell_filter = cv2.inRange(img, np.array([244, 35, 232]), np.array([244, 35, 232]))
+    cell_filter = cv2.inRange(img, cell_color, cell_color)
     labeled_axon, nr_axon = ndimage.label(axon_filter)
     labeled_cell, nr_cell = ndimage.label(cell_filter)
-    # fig, axs = plt.subplots(1, 2, figsize=(15, 15), dpi=80)
-    # axs[0].imshow(labeled_axon)
-    # axs[0].set_title('Segmented axon clusters count: ' + str(nr_axon))
-    # axs[1].imshow(labeled_cell)
-    # axs[1].set_title('Segmented cell clusters count: ' + str(nr_cell))
-    # plt.show()
-    return labeled_axon, labeled_cell
+    fig, axs = plt.subplots(1, 2, figsize=(15, 15), dpi=80)
+    axs[0].imshow(labeled_axon, )
+    axs[0].set_title('Segmented axon clusters count: ' + str(nr_axon))
+    axs[1].imshow(labeled_cell)
+    axs[1].set_title('Segmented cell clusters count: ' + str(nr_cell))
+    plt.show()
+    return labeled_axon, labeled_cell, nr_cell
 
 
 def get_touching_dict(labeled_axon, labeled_cell):
@@ -64,7 +70,8 @@ def get_touching_dict(labeled_axon, labeled_cell):
 
 
 def filter_axon(img):
-    axon_filter = cv2.inRange(img, np.array([119, 11, 32]), np.array([119, 11, 32]))
+    # axon_filter = cv2.inRange(img, np.array([119, 11, 32]), np.array([119, 11, 32]))
+    axon_filter = cv2.inRange(img, axon_color, axon_color)
     fil = FilFinder2D(axon_filter, distance=250 * u.pc, mask=axon_filter)
     fil.preprocess_image(flatten_percent=85)
     fil.create_mask(border_masking=True, verbose=False, use_existing_mask=True)
@@ -96,14 +103,6 @@ def cal_dist(arr):
             prev = pt
     dist += math.sqrt((arr[-1][0]-prev[0])**2+(arr[-1][1]-prev[1])**2)
     return dist
-
-
-# Return the orientation of axon in terms of degrees
-def getOrientation(start, end):
-    vertical_diff = start[0] - end[0] # The vertical coordinate of a smaller value is on the top
-    horizontal_diff = end[1] - start[1]
-    degree = math.degrees(math.atan2(vertical_diff, horizontal_diff))  # atan returns a value between -pi/2 and pi/2
-    return degree
 
 
 # Get the pixel that is closest to the touching cell on the skeleton
@@ -171,4 +170,4 @@ def analyze_axons(fil, axon_adjacent, axons_to_cells):
     for info in info_list:
         print(info)
     plt.show()
-    return
+    return info_list
