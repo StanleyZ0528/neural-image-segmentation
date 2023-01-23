@@ -51,8 +51,6 @@ class ImgSeg(QtWidgets.QMainWindow):
         if self.file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
             # conduct the process
             gamma_image = gamma_correction(self.file_name)
-            print(gamma_image.shape)
-            print(gamma_image)
             result = unet_predict(gamma_image)
 
             # display the result
