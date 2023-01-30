@@ -13,8 +13,8 @@ unet_model = UNet.load_from_checkpoint(chk_path)
 
 
 def gamma_correction(input_image):
-    # read image
-    input_image = cv2.imread(input_image)
+    # # read image
+    # input_image = cv2.imread(input_image)
 
     # convert img to gray
     gray = cv2.cvtColor(input_image, cv2.COLOR_BGR2GRAY)

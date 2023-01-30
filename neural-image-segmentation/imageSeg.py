@@ -16,10 +16,13 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow(self)
         self.ui.toolButton.clicked.connect(self.tool_button_callback)
         self.ui.pushButton.clicked.connect(self.process_button_callback)
+        self.ui.preButton.clicked.connect(self.pre_button_callback)
         self.ui.analyzeButton.clicked.connect(self.analyze_button_callback)
         self.ui.clearButton.clicked.connect(self.clear_button_callback)
         self.file_name = ""
-        self.img = []
+        self.img = None
+        self.gamma_image = None
+        self.seg_image = None
         self.show()
 
     def display_img(self, image):
@@ -47,24 +50,39 @@ class ImgSeg(QtWidgets.QMainWindow):
             msg.setText("Please check the input file")
             msg.show()
 
-    def process_button_callback(self):
-        if self.file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
+    def pre_button_callback(self):
+        if self.img:
             # conduct the process
-            gamma_image = gamma_correction(self.file_name)
-            result = unet_predict(gamma_image)
+            self.gamma_image = gamma_correction(self.img)
 
             # display the result
-            self.display_img(result.astype(np.uint8))
+            self.display_img(self.gamma_image)
         else:
             msg = QtWidgets.QMessageBox(self)
             msg.setWindowTitle("Failed")
             msg.setText("Please check the input file")
             msg.show()
 
+    def process_button_callback(self):
+        if self.gamma_image:
+            # conduct the process
+            self.seg_image = unet_predict(self.gamma_image)
+
+            # display the result
+            self.display_img(self.seg_image.astype(np.uint8))
+        else:
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Failed")
+            msg.setText("Warning: Gamma Correction not applied!")
+            msg.show()
+
     def clear_button_callback(self):
         self.ui.textBrowser.setText("")
         scene = QtWidgets.QGraphicsScene(self)
         self.ui.graphicsView.setScene(scene)
+        self.img = None
+        self.gamma_image = None
+        self.seg_image = None
 
     def analyze_button_callback(self):
         labeled_axon, labeled_cell, nr_cell = separate_axon_and_cell(self.img)
