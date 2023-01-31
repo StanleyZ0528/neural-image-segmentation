@@ -32,7 +32,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         item = QtWidgets.QGraphicsPixmapItem(pix)
         scene = QtWidgets.QGraphicsScene(self)
         scene.addItem(item)
-        self.ui.graphicsView.setScene(scene)
+        self.ui.graphicsView.setPhotoByScnen(scene)
 
     def tool_button_callback(self):
         self.file_name = QtWidgets.QFileDialog.getOpenFileName(self)[0]
@@ -40,10 +40,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         if self.file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
             self.img = readImg(self.file_name)
             pix = QtGui.QPixmap(self.file_name)
-            item = QtWidgets.QGraphicsPixmapItem(pix)
-            scene = QtWidgets.QGraphicsScene(self)
-            scene.addItem(item)
-            self.ui.graphicsView.setScene(scene)
+            self.ui.graphicsView.setPhoto(pix)
         else:
             msg = QtWidgets.QMessageBox(self)
             msg.setWindowTitle("Failed")
@@ -51,7 +48,7 @@ class ImgSeg(QtWidgets.QMainWindow):
             msg.show()
 
     def pre_button_callback(self):
-        if self.img:
+        if self.img is not None:
             # conduct the process
             self.gamma_image = gamma_correction(self.img)
 
@@ -64,7 +61,7 @@ class ImgSeg(QtWidgets.QMainWindow):
             msg.show()
 
     def process_button_callback(self):
-        if self.gamma_image:
+        if self.gamma_image is not None:
             # conduct the process
             self.seg_image = unet_predict(self.gamma_image)
 
@@ -78,8 +75,7 @@ class ImgSeg(QtWidgets.QMainWindow):
 
     def clear_button_callback(self):
         self.ui.textBrowser.setText("")
-        scene = QtWidgets.QGraphicsScene(self)
-        self.ui.graphicsView.setScene(scene)
+        self.ui.graphicsView.setPhotoByScnen(None)
         self.img = None
         self.gamma_image = None
         self.seg_image = None

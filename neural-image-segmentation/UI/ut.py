@@ -9,6 +9,7 @@
 
 
 from PyQt6 import QtCore, QtGui, QtWidgets
+from .viewer import ImageViewer
 
 
 class Ui_MainWindow(object):
@@ -40,10 +41,11 @@ class Ui_MainWindow(object):
         self.clearButton = QtWidgets.QPushButton(self.verticalLayoutWidget)
         self.clearButton.setObjectName("clearButton")
         self.verticalLayout.addWidget(self.clearButton)
-        self.graphicsView = QtWidgets.QGraphicsView(self.centralWidget)
-        self.graphicsView.setEnabled(True)
+        self.graphicsView = ImageViewer(self.centralWidget)
         self.graphicsView.setGeometry(QtCore.QRect(190, 40, 853, 640))
         self.graphicsView.setObjectName("graphicsView")
+        # self.graphicsView = QtWidgets.QGraphicsView(self.centralWidget)
+        # self.graphicsView.setEnabled(True)
         # self.progressBar = QtWidgets.QProgressBar(self.centralWidget)
         # self.progressBar.setGeometry(QtCore.QRect(370, 390, 118, 23))
         # self.progressBar.setProperty("value", 24)
