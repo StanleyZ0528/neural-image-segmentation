@@ -91,6 +91,7 @@ def unet_predict(input_image):
     result[output_image == 0] = np.array([250, 170,  30])
     result[output_image == 1] = np.array([244,  35, 232])
     result[output_image == 2] = np.array([119,  11,  32])
+    result[output_image == 3] = np.array([255,  255,  255])
 
     return result
 
@@ -140,4 +141,5 @@ if __name__ == '__main__':
    
     print("Running mask_stitching....")
     complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
-    plt.imshow("mask", complete_mask)
+    plt.imshow(complete_mask)
+    plt.show()
