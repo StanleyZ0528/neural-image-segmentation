@@ -126,10 +126,22 @@ if __name__ == '__main__':
     img_path = '902-complete.tif'
     mask_path = '902-complete-mask.png'
 
-    mask_files = glob.glob(mask_path)
-    mask = Image.open(mask_files[0])
+    mask = cv2.imread(mask_path)
     mask = np.array(mask)
+    # mask = torch.from_numpy(mask).long()
+    result = np.zeros((mask.shape[0], mask.shape[1]), dtype=int)
+    print(mask)
+
+    red, green, blue = mask[:,:,0], mask[:,:,1], mask[:,:,2]
+    background = (red == 0) & (green == 0) & (blue == 0)
+    cell = (red == 255) & (green == 0) & (blue == 255)
+    neurite = (red == 255) & (green == 129) & (blue == 31)
+    mask[:,:,:3][background] = [250, 170, 30]
+    mask[:,:,:3][cell] = [244, 35, 232]
+    mask[:,:,:3][neurite] = [119, 11, 3320]
+
     mask = torch.from_numpy(mask).long()
+    print(mask)
 
     print("Resampling image....")
     resampled_image = image_resample_row(img_path, size=(4, 5), sample_size=512)
@@ -141,5 +153,9 @@ if __name__ == '__main__':
    
     print("Running mask_stitching....")
     complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
+    result = torch.from_numpy(complete_mask).long()
+
+    val_acc    = torch.sum(result==mask).item()/(torch.numel(mask))
+    print("acc: ", val_acc)
     plt.imshow(complete_mask)
     plt.show()
