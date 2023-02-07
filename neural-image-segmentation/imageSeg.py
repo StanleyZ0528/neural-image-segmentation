@@ -9,6 +9,9 @@ from unet.unet_utils import gamma_correction, unet_predict
 from postImgProc.utils import *
 from postImgProc.alg import *
 
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
 
 class ImgSeg(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
@@ -50,7 +53,8 @@ class ImgSeg(QtWidgets.QMainWindow):
     def pre_button_callback(self):
         if self.img is not None:
             # conduct the process
-            self.gamma_image = gamma_correction(self.img)
+            if self.gamma_image is None:
+                self.gamma_image = gamma_correction(self.img)
 
             # display the result
             self.display_img(self.gamma_image)
@@ -63,7 +67,8 @@ class ImgSeg(QtWidgets.QMainWindow):
     def process_button_callback(self):
         if self.gamma_image is not None:
             # conduct the process
-            self.seg_image = unet_predict(self.gamma_image)
+            if self.seg_image is None:
+                self.seg_image = unet_predict(self.gamma_image)
 
             # display the result
             self.display_img(self.seg_image.astype(np.uint8))
