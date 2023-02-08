@@ -8,9 +8,11 @@ from UI.ut import Ui_MainWindow
 from unet.unet_utils import gamma_correction, unet_predict
 from postImgProc.utils import *
 from postImgProc.alg import *
+import pyqtgraph as pg
 
 import os
-os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
 class ImgSeg(QtWidgets.QMainWindow):
@@ -92,7 +94,16 @@ class ImgSeg(QtWidgets.QMainWindow):
         info_list = analyze_axons(fil, labeled_axon, axons_to_cells)
         segmented_axons = getSegmentedAxons(fil, info_list, nr_cell)
         img_annotated = self.img.copy()
-        print(img_annotated)
+        # print(len(img_annotated), len(img_annotated[0]))
+        height = len(img_annotated)
+        width = len(img_annotated[0])
+        # print(img_annotated[0][0])
+        for axon in segmented_axons:
+            for pixel in axon:
+                # print(pixel)
+                img_annotated[max(pixel[0] - 3, 0): min(pixel[0] + 3, height - 1),
+                max(pixel[1] - 3, 0): min(pixel[1] + 3, width - 1)] = [255, 0, 0]
+        # print(img_annotated)
         # for item in info_list:
         #     touch_points = item["touch_points"]
         #     intersect_points = item["intersect_points"]
@@ -108,7 +119,41 @@ class ImgSeg(QtWidgets.QMainWindow):
         #             continue
         #         img_annotated[coord[0]][coord[1]] = [0, 255, 0]
         # display the result
-        self.display_img(img_annotated)
+        im = Image.fromarray(img_annotated)
+        im.save("result/result.png", format="png")
+        pix = QtGui.QPixmap("result/result.png")
+        self.ui.graphicsView.setPhoto(pix)
+
+        _translate = QtCore.QCoreApplication.translate
+        length_dist = [0, 0, 0, 0, 0]
+        total_length = 0
+        # length_range = ["20-50", "50-100", "100-150", "150-200", "200+"]
+        length_range = [0, 1, 2, 3, 4]
+        for i in range(len(segmented_axons)):
+            length = pixel_to_length(cal_dist(segmented_axons[i]))
+            total_length += length
+            if length <= 50:
+                length_dist[0] += 1
+            elif length <= 100:
+                length_dist[1] += 1
+            elif length <= 150:
+                length_dist[2] += 1
+            elif length <= 200:
+                length_dist[3] += 1
+            else:
+                length_dist[4] += 1
+        average_length = total_length / len(segmented_axons)
+        self.ui.info.setText(_translate("MainWindow",
+                                        "Information:\n"
+                                        "Cells count: " + str(nr_cell) + "\n" +
+                                        "Axons count: " + str(len(segmented_axons)) + "\n" +
+                                        "Average axon length: " + "{:.2f}".format(average_length) + "μm\n"))
+        graphWidget = pg.PlotWidget()
+        graphWidget.setBackground((255, 255, 255, 0))
+        graphWidget.plot(length_range, length_dist, symbol='o', symbolPen=None, symbolSize=10,
+                         symbolBrush=(100, 100, 255, 255))
+        self.ui.infoboxLayout.addWidget(graphWidget)
+        # self.display_img(im)
 
 
 if __name__ == '__main__':

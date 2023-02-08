@@ -30,12 +30,12 @@ def separate_axon_and_cell(img):
     cell_filter = cv2.inRange(img, cell_color, cell_color)
     labeled_axon, nr_axon = ndimage.label(axon_filter)
     labeled_cell, nr_cell = ndimage.label(cell_filter)
-    fig, axs = plt.subplots(1, 2, figsize=(15, 15), dpi=80)
-    axs[0].imshow(labeled_axon, )
-    axs[0].set_title('Segmented axon clusters count: ' + str(nr_axon))
-    axs[1].imshow(labeled_cell)
-    axs[1].set_title('Segmented cell clusters count: ' + str(nr_cell))
-    plt.show()
+    # fig, axs = plt.subplots(1, 2, figsize=(15, 15), dpi=80)
+    # axs[0].imshow(labeled_axon, )
+    # axs[0].set_title('Segmented axon clusters count: ' + str(nr_axon))
+    # axs[1].imshow(labeled_cell)
+    # axs[1].set_title('Segmented cell clusters count: ' + str(nr_cell))
+    # plt.show()
     return labeled_axon, labeled_cell, nr_cell
 
 
@@ -128,7 +128,7 @@ def getTouchingPoint(filament, touch_coord):
 def analyze_axons(fil, axon_adjacent, axons_to_cells):
     length_filament = len(fil.filaments)
     figure(figsize=(10, 10), dpi=80)
-    plt.imshow(fil.skeleton, cmap='gray')
+    # plt.imshow(fil.skeleton, cmap='gray')
     info_list = []
     for i in range(length_filament):
         x = fil.filaments[i].pixel_coords[0][0]
@@ -157,17 +157,17 @@ def analyze_axons(fil, axon_adjacent, axons_to_cells):
         info_list.append({"touch_points": touch_points, "end_points": end_points, "intersect_points": intersect_points,
                           "dists": dists})
         # print(intersect_points)
-        for coord in touch_points:
-            plt.plot(coord[1], coord[0], 'ro')
-        for coord in intersect_points:
-            if not type(coord) is tuple:
-                continue
-            plt.plot(coord[1], coord[0], 'bo')
-        for coord in end_points:
-            if not type(coord) is tuple:
-                continue
-            plt.plot(coord[1], coord[0], 'go')
+        # for coord in touch_points:
+        #     plt.plot(coord[1], coord[0], 'ro')
+        # for coord in intersect_points:
+        #     if not type(coord) is tuple:
+        #         continue
+        #     plt.plot(coord[1], coord[0], 'bo')
+        # for coord in end_points:
+        #     if not type(coord) is tuple:
+        #         continue
+        #     plt.plot(coord[1], coord[0], 'go')
     for info in info_list:
         print(info)
-    plt.show()
+    # plt.show()
     return info_list

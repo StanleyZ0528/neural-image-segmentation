@@ -26,3 +26,7 @@ var/
 
 # Unwanted folder
 neural-image-segmentation/data
+neural-image-segmentation/result
+
+# Trained Model
+*.ckpt

@@ -9,3 +9,4 @@ pip install Pillow
 pip install PyQt6
 pip install torch
 pip install pytorch-lightning
+pip install pyqtgraph

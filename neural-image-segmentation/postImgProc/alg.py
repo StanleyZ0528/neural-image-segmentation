@@ -10,6 +10,10 @@ from fil_finder import FilFinder2D, Filament2D
 import astropy.units as u
 
 
+# Translate distance from number of pixels to total length
+def pixel_to_length(pixel_length):
+    return pixel_length / 2.22
+
 # Calculate the total length of an axon segment
 def cal_dist(arr):
     prev = arr[0]
@@ -98,7 +102,7 @@ def getSegmentedAxons(fil, info_list, nr_cell):
     for i in range(len(info_list)):
         line_segments, touch_segments = getLineSegments(i, fil, info_list)
         length = len(line_segments)
-        print(length, touch_segments)
+        # print(length, touch_segments)
         line_used = [False for j in range(length)]
         count = 0
         itr = 0
@@ -129,7 +133,7 @@ def getSegmentedAxons(fil, info_list, nr_cell):
                             ori_approx = abs(ori1 - ori2) % 180
                             if ori_approx > 90:
                                 ori_approx = 180 - ori_approx
-                            print(ori_approx)
+                            # print(ori_approx)
                             if ori_approx < orientation_approx:
                                 orientation_approx = ori_approx
                                 assigned_seg = k
@@ -139,7 +143,7 @@ def getSegmentedAxons(fil, info_list, nr_cell):
                             ori_approx = abs(ori1 - ori2) % 180
                             if ori_approx > 90:
                                 ori_approx = 180 - ori_approx
-                            print(ori_approx)
+                            # print(ori_approx)
                             if ori_approx < orientation_approx:
                                 orientation_approx = ori_approx
                                 assigned_seg = k
@@ -153,7 +157,7 @@ def getSegmentedAxons(fil, info_list, nr_cell):
                             ori_approx = abs(ori1 - ori2) % 180
                             if ori_approx > 90:
                                 ori_approx = 180 - ori_approx
-                            print(ori_approx)
+                            # print(ori_approx)
                             if ori_approx < orientation_approx:
                                 orientation_approx = ori_approx
                                 assigned_seg = k
@@ -163,7 +167,7 @@ def getSegmentedAxons(fil, info_list, nr_cell):
                             ori_approx = abs(ori1 - ori2) % 180
                             if ori_approx > 90:
                                 ori_approx = 180 - ori_approx
-                            print(ori_approx)
+                            # print(ori_approx)
                             if ori_approx < orientation_approx:
                                 orientation_approx = ori_approx
                                 assigned_seg = k
