@@ -115,6 +115,11 @@ class ImgSeg(QtWidgets.QMainWindow):
         height = len(img_annotated)
         width = len(img_annotated[0])
         # print(img_annotated[0][0])
+        for i in range(height):
+            for j in range(width):
+                if segmentation_analysis.cell_boundary_mask[i][j] != 0:
+                    img_annotated[max(i - 1, 0): min(i + 1, height - 1),
+                    max(j - 1, 0): min(j + 1, width - 1)] = [255, 255, 0]
         for axon in segmented_axons:
             for pixel in axon:
                 # print(pixel)

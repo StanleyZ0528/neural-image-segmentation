@@ -9,7 +9,9 @@ import copy
 from fil_finder import FilFinder2D, Filament2D
 import astropy.units as u
 from .utils import *
+from scipy.ndimage.morphology import binary_dilation
 
+CELLFILTER = 200
 
 class SegmentationAnalysis:
     def __init__(self):
@@ -28,6 +30,7 @@ class SegmentationAnalysis:
         self.axon_adjacent = []
         self.segmented_axons = []
         self.show_orientation = []
+        self.cell_boundary_mask = []
 
     def readImg(self, path):
         self.img_path = path
@@ -39,6 +42,18 @@ class SegmentationAnalysis:
         cell_filter = cv2.inRange(self.img, self.cell_color, self.cell_color)
         self.labeled_axon, nr_axon = ndimage.label(axon_filter)
         self.labeled_cell, self.nr_cell = ndimage.label(cell_filter)
+
+    def filter_cells(self):
+        filter_size = CELLFILTER * 2.22 * 2.22
+        for i in range(1, self.nr_cell):
+            area = np.isclose(i, self.labeled_cell).sum()
+            if area < filter_size:
+                self.labeled_cell[self.labeled_cell == i] = 0
+
+            print("cell:", i, area)
+
+        k = np.ones((3, 3), dtype=int)  # for 4-connected
+        self.cell_boundary_mask = binary_dilation(self.labeled_cell == 0, k) & (self.labeled_cell != 0)
 
     def get_touching_dict(self):
         self.axon_adjacent = copy.deepcopy(self.labeled_axon)
@@ -268,6 +283,7 @@ class SegmentationAnalysis:
         self.img_path = path
         # print(np.unique(img.reshape(-1, 3), axis=0))
         self.separate_axon_and_cell()
+        self.filter_cells()
         self.get_touching_dict()
         self.filter_axon()
         self.analyze_axons()
