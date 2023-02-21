@@ -92,7 +92,7 @@ class Ui_MainWindow(object):
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
         self.infoboxLayoutWidget = QtWidgets.QWidget(self.centralWidget)
-        self.infoboxLayoutWidget.setGeometry(QtCore.QRect(1100, 10, 300, 500))
+        self.infoboxLayoutWidget.setGeometry(QtCore.QRect(1050, 10, 400, 500))
         self.infoboxLayoutWidget.setObjectName("verticalLayoutWidget")
         self.infoboxLayout = QtWidgets.QVBoxLayout(self.infoboxLayoutWidget)
         self.infoboxLayout.setContentsMargins(0, 0, 0, 0)

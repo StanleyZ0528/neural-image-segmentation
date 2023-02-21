@@ -17,9 +17,10 @@ def pixel_to_length(pixel_length):
 
 # Return the orientation of axon in terms of degrees
 def getOrientation(start, end):
-    vertical_diff = start[0] - end[0]  # The vertical coordinate of a smaller value is on the top
+    vertical_diff = end[0] - start[0]  # The vertical coordinate of a smaller value is on the top
     horizontal_diff = end[1] - start[1]
     degree = math.degrees(math.atan2(vertical_diff, horizontal_diff))  # atan returns a value between -pi/2 and pi/2
+    degree = ((90 - degree) + 360) % 360
     return degree
 
 

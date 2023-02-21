@@ -2,7 +2,7 @@
 import warnings
 import sys
 import numpy as np
-from PyQt6 import QtWidgets, QtCore, QtGui
+from PyQt6 import QtWidgets, QtCore, QtGui, QtCharts
 from PIL import Image, ImageQt
 from UI.ut import Ui_MainWindow
 from unet.unet_utils import gamma_correction, unet_predict
@@ -14,6 +14,11 @@ from skimage.morphology import flood_fill
 import os
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+THRESHOLD0 = 40
+THRESHOLD1 = 75
+THRESHOLD2 = 100
+THRESHOLD3 = 150
 
 
 class ImgSeg(QtWidgets.QMainWindow):
@@ -139,32 +144,86 @@ class ImgSeg(QtWidgets.QMainWindow):
         _translate = QtCore.QCoreApplication.translate
         length_dist = [0, 0, 0, 0, 0]
         total_length = 0
+        axon_set = [[0]*4 for i in range(5)]
+        rangeMax = 0
         # length_range = ["20-50", "50-100", "100-150", "150-200", "200+"]
-        length_range = [20, 50, 100, 150, 200]
+        length_range = [20, THRESHOLD0, THRESHOLD1, THRESHOLD2, THRESHOLD3]
         for i in range(len(segmented_axons)):
             length = pixel_to_length(cal_dist(segmented_axons[i]))
+            orientation = getOrientation(segmented_axons[i][0], segmented_axons[i][-1])
             total_length += length
-            if length <= 50:
-                length_dist[0] += 1
-            elif length <= 100:
-                length_dist[1] += 1
-            elif length <= 150:
-                length_dist[2] += 1
-            elif length <= 200:
-                length_dist[3] += 1
+            index = 0
+            if length <= THRESHOLD0:
+                index = 0
+            elif length <= THRESHOLD1:
+                index = 1
+            elif length <= THRESHOLD2:
+                index = 2
+            elif length <= THRESHOLD3:
+                index = 3
             else:
-                length_dist[4] += 1
+                index = 4
+            length_dist[index] += 1
+            if orientation <= 45 or orientation >= 315:
+                axon_set[index][0] += 1
+            elif orientation <= 135:
+                axon_set[index][1] += 1
+            elif orientation <= 225:
+                axon_set[index][2] += 1
+            else:
+                axon_set[index][3] += 1
+        length_range = max(max(x) for x in axon_set)
         average_length = total_length / len(segmented_axons)
+        set0 = QtCharts.QBarSet("20-" + str(THRESHOLD0))
+        set1 = QtCharts.QBarSet(str(THRESHOLD0) + "-" + str(THRESHOLD1))
+        set2 = QtCharts.QBarSet(str(THRESHOLD1) + "-" + str(THRESHOLD2))
+        set3 = QtCharts.QBarSet(str(THRESHOLD2) + "-" + str(THRESHOLD3))
+        set4 = QtCharts.QBarSet(str(THRESHOLD3))
+        set0.append(axon_set[0])
+        set1.append(axon_set[1])
+        set2.append(axon_set[2])
+        set3.append(axon_set[3])
+        set4.append(axon_set[4])
         self.ui.info.setText(_translate("MainWindow",
                                         "Information:\n"
                                         "Cells count: " + str(segmentation_analysis.nr_cell) + "\n" +
                                         "Axons count: " + str(len(segmented_axons)) + "\n" +
                                         "Average axon length: " + "{:.2f}".format(average_length) + "μm\n"))
-        graphWidget = pg.PlotWidget()
-        graphWidget.setBackground((255, 255, 255, 0))
-        graphWidget.plot(length_range, length_dist, symbol='o', symbolPen=None, symbolSize=10,
-                         symbolBrush=(100, 100, 255, 255))
-        self.ui.infoboxLayout.addWidget(graphWidget)
+        series = QtCharts.QBarSeries()
+        series.append(set0)
+        series.append(set1)
+        series.append(set2)
+        series.append(set3)
+        series.append(set4)
+        axonLengthWidget = QtCharts.QChart()
+        axonLengthWidget.addSeries(series)
+        axonLengthWidget.setTitle("Axon Length Distribution")
+        # axonLengthWidget.setLabel('left', 'Count', color="b", size="12pt")
+        # axonLengthWidget.setLabel('bottom', 'Length', color="b", size="12pt")
+        categories = ["N", "E", "S", "W"]
+        axisX = QtCharts.QBarCategoryAxis()
+        axisX.append(categories)
+        axonLengthWidget.addAxis(axisX, QtCore.Qt.AlignmentFlag.AlignBottom)
+
+        axisY = QtCharts.QValueAxis()
+        axisY.setRange(0, length_range)
+        axisY.setLabelFormat("%d")
+        axonLengthWidget.addAxis(axisY, QtCore.Qt.AlignmentFlag.AlignLeft)
+
+        axonLengthWidget.legend().setVisible(True)
+        axonLengthWidget.legend().adjustSize()
+        axonLengthWidget.legend().setAlignment(QtCore.Qt.AlignmentFlag.AlignBottom)
+
+        # chartView.setRenderHint(QtGui.QPainter.RenderHints.Antialiasing)
+        axonLengthWidget.resize(100, 75)
+        axonLengthWidget.setBackgroundBrush(QtGui.QColor(140, 255, 255, 127))
+        # axonLengthWidget.setBackground((255, 255, 255, 0))
+        # axonLengthWidget.plot(length_range, length_dist, symbol='o', symbolPen=None, symbolSize=10,
+        #                  symbolBrush=(100, 100, 255, 255))
+        chartView = QtCharts.QChartView(axonLengthWidget)
+        chartView.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        self.ui.infoboxLayout.addWidget(chartView)
+        axonOrientationWidget = QtCharts.QPolarChart
         # self.display_img(im)
 
     def eventFilter(self, source, event):

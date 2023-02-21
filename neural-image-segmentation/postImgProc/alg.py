@@ -245,8 +245,8 @@ class SegmentationAnalysis:
             for ele in self.info_list[i]["touch_points"]:
                 all_touch_points.append(ele)
         for i in range(len(self.segmented_axons)):
-            dist = cal_dist(self.segmented_axons[i])
-            if dist <= 44:
+            dist = pixel_to_length(cal_dist(self.segmented_axons[i]))
+            if dist <= 20:
                 index_to_remove.append(i)
                 continue
             touch_index1 = get_touch(self.segmented_axons[i][0], all_touch_points)
