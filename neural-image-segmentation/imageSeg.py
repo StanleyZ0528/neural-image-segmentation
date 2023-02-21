@@ -103,11 +103,8 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.seg_image = None
 
     def analyze_button_callback(self):
-        labeled_axon, labeled_cell, nr_cell = separate_axon_and_cell(self.img)
-        axons_to_cells = get_touching_dict(labeled_axon, labeled_cell)
-        fil = filter_axon(self.img)
-        info_list = analyze_axons(fil, labeled_axon, axons_to_cells)
-        segmented_axons = getSegmentedAxons(fil, info_list, nr_cell)
+        segmentation_analysis = SegmentationAnalysis()
+        segmented_axons = segmentation_analysis.run(self.file_name, self.img)
         img_annotated = self.img.copy()
         # print(len(img_annotated), len(img_annotated[0]))
         height = len(img_annotated)
@@ -143,7 +140,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         length_dist = [0, 0, 0, 0, 0]
         total_length = 0
         # length_range = ["20-50", "50-100", "100-150", "150-200", "200+"]
-        length_range = [0, 1, 2, 3, 4]
+        length_range = [20, 50, 100, 150, 200]
         for i in range(len(segmented_axons)):
             length = pixel_to_length(cal_dist(segmented_axons[i]))
             total_length += length
@@ -160,7 +157,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         average_length = total_length / len(segmented_axons)
         self.ui.info.setText(_translate("MainWindow",
                                         "Information:\n"
-                                        "Cells count: " + str(nr_cell) + "\n" +
+                                        "Cells count: " + str(segmentation_analysis.nr_cell) + "\n" +
                                         "Axons count: " + str(len(segmented_axons)) + "\n" +
                                         "Average axon length: " + "{:.2f}".format(average_length) + "μm\n"))
         graphWidget = pg.PlotWidget()

@@ -8,220 +8,268 @@ import math
 import copy
 from fil_finder import FilFinder2D, Filament2D
 import astropy.units as u
+from .utils import *
 
 
-# Translate distance from number of pixels to total length
-def pixel_to_length(pixel_length):
-    return pixel_length / 2.22
+class SegmentationAnalysis:
+    def __init__(self):
+        self.axon_color = np.array([255, 129, 31])  # Axon color pixel mask
+        self.cell_color = np.array([255, 0, 255])  # Cell color pixel mask
+        self.img = []  # The original segmentation image in rgb color
+        self.img_path = ""
+        # Labeled Info
+        self.labeled_axon = []  # Labeled Axons with different numbers
+        self.labeled_cell = []  # Labeled Cell Clusters with different numbers
+        self.nr_cell = 0  # Total number of cell clusters
 
-# Calculate the total length of an axon segment
-def cal_dist(arr):
-    prev = arr[0]
-    dist = 0
-    # print(branch_array)
-    for pt in arr:
-        if prev[0] != pt[0] and prev[1] != pt[1]:
-            dist += math.sqrt((pt[0]-prev[0])**2+(pt[1]-prev[1])**2)
-            prev = pt
-    dist += math.sqrt((arr[-1][0]-prev[0])**2+(arr[-1][1]-prev[1])**2)
-    return dist
+        self.axons_to_cells = {}
+        self.fil = None
+        self.info_list = []
+        self.axon_adjacent = []
+        self.segmented_axons = []
+        self.show_orientation = []
 
+    def readImg(self, path):
+        self.img_path = path
+        img_ori = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        self.img = cv2.cvtColor(img_ori, cv2.COLOR_BGR2RGB)
 
-# Return the orientation of axon in terms of degrees
-def getOrientation(start, end):
-    vertical_diff = start[0] - end[0] # The vertical coordinate of a smaller value is on the top
-    horizontal_diff = end[1] - start[1]
-    degree = math.degrees(math.atan2(vertical_diff, horizontal_diff))  # atan returns a value between -pi/2 and pi/2
-    return degree
+    def separate_axon_and_cell(self):
+        axon_filter = cv2.inRange(self.img, self.axon_color, self.axon_color)
+        cell_filter = cv2.inRange(self.img, self.cell_color, self.cell_color)
+        self.labeled_axon, nr_axon = ndimage.label(axon_filter)
+        self.labeled_cell, self.nr_cell = ndimage.label(cell_filter)
 
+    def get_touching_dict(self):
+        self.axon_adjacent = copy.deepcopy(self.labeled_axon)
+        labeled_axon_np = np.array(self.labeled_axon)
+        labeled_cell_np = np.array(self.labeled_cell)
+        height = len(labeled_axon_np)
+        width = len(labeled_axon_np[0])
+        for i in range(height):
+            for j in range(width):
+                if self.axon_adjacent[i][j] == 0:
+                    continue
+                if i == 0 or j == 0 or i == height - 1 or j == width - 1:
+                    continue
+                if labeled_cell_np[i - 1][j] != 0 or labeled_cell_np[i + 1][j] != 0 or labeled_cell_np[i][j - 1] != 0 or \
+                        labeled_cell_np[i][j - 1] != 0:
+                    if self.axon_adjacent[i][j] not in self.axons_to_cells.keys():
+                        self.axons_to_cells[self.axon_adjacent[i][j]] = {}
+                    touching_cell = -1
+                    if labeled_cell_np[i - 1][j] != 0:
+                        touching_cell = labeled_cell_np[i - 1][j]
+                    elif labeled_cell_np[i + 1][j] != 0:
+                        touching_cell = labeled_cell_np[i + 1][j]
+                    elif labeled_cell_np[i][j - 1] != 0:
+                        touching_cell = labeled_cell_np[i][j - 1]
+                    else:
+                        touching_cell = labeled_cell_np[i][j + 1]
+                    self.axons_to_cells[self.axon_adjacent[i][j]][touching_cell] = [i, j]
 
-# Check if the pixel element is on the axon segment
-def arr_in(ele, arr):
-    for e in arr:
-        if e[0] == ele[0] and e[1] == ele[1]:
-            return True
-    return False
+    def filter_axon(self):
+        axon_filter = cv2.inRange(self.img, self.axon_color, self.axon_color)
+        self.fil = FilFinder2D(axon_filter, distance=250 * u.pc, mask=axon_filter)
+        self.fil.preprocess_image(flatten_percent=85)
+        self.fil.create_mask(border_masking=True, verbose=False, use_existing_mask=True)
+        self.fil.medskel(verbose=False)
+        self.fil.analyze_skeletons(branch_thresh=20 * u.pix, skel_thresh=10 * u.pix, prune_criteria='length')
 
+    def fil_info(self):
+        print(self.fil.lengths())
+        print(self.fil.branch_lengths())
 
-def get_touch(ele, arr):
-    for e in arr:
-        if e[0] == ele[0] and e[1] == ele[1]:
-            return e[2]
-    return -1
+    def analyze_axons(self):
+        length_filament = len(self.fil.filaments)
+        figure(figsize=(10, 10), dpi=80)
+        # plt.imshow(fil.skeleton, cmap='gray')
+        for i in range(length_filament):
+            x = self.fil.filaments[i].pixel_coords[0][0]
+            y = self.fil.filaments[i].pixel_coords[1][0]
+            if not (self.axon_adjacent[x][y] in self.axons_to_cells.keys()):
+                self.info_list.append({"touch_points": [], "end_points": [], "intersect_points": [], "dists": []})
+                continue
+            touching_points = self.axons_to_cells[self.axon_adjacent[x][y]]
+            index = 0
+            touch_points = []
+            end_points = self.fil.filaments[i].end_pts
+            dists = []
+            intersect_points = []
+            for touching_key in touching_points.keys():
+                touching_coord = touching_points[touching_key]
+                touch_point = getTouchingPoint(self.fil.filaments[i], touching_coord)
+                touch_point.append(touching_key)
+                touch_points.append(touch_point)
+            for branch_array in self.fil.filaments[i].branch_pts():
+                prev = [-1, -1]
+                dist = cal_dist(branch_array)
+                dists.append(dist)
+            for ele in self.fil.filaments[i].intersec_pts:
+                for e in ele:
+                    intersect_points.append(e)
+            self.info_list.append(
+                {"touch_points": touch_points, "end_points": end_points, "intersect_points": intersect_points,
+                 "dists": dists})
 
+    def displayInfoList(self):
+        for info in self.info_list:
+            print(info)
 
-# Since the intersection point might not be included in the branch pixel array,
-# this branch is trying to find out if one end point is an intersect point
-def close(ele1, ele2):
-    dist = math.sqrt((ele1[0] - ele2[0]) ** 2 + (ele1[1] - ele2[1]) ** 2)
-    return dist < 8
-
-
-def getLineSegments(i, fil, info_list):
-    line_segments = []
-    touch_segments = set()
-    for br_pts in fil.filaments[i].branch_pts():
-        line = []
-        for pt in br_pts:
-            pt_wc = list(pt)
-            pt_wc[0] += fil.filament_extents[i][0][0] - 1
-            pt_wc[1] += fil.filament_extents[i][0][1] - 1
-            line.append(pt_wc)
-            if_touch = get_touch(pt_wc, info_list[i]["touch_points"])
-            if if_touch != -1 and len(line) > 1:
-                for inter in info_list[i]["intersect_points"]:
+    def getLineSegments(self, i):
+        line_segments = []
+        touch_segments = set()
+        for br_pts in self.fil.filaments[i].branch_pts():
+            line = []
+            for pt in br_pts:
+                pt_wc = list(pt)
+                pt_wc[0] += self.fil.filament_extents[i][0][0] - 1
+                pt_wc[1] += self.fil.filament_extents[i][0][1] - 1
+                line.append(pt_wc)
+                if_touch = get_touch(pt_wc, self.info_list[i]["touch_points"])
+                if if_touch != -1 and len(line) > 1:
+                    for inter in self.info_list[i]["intersect_points"]:
+                        if close(line[-1], inter):
+                            line.append(list(inter))
+                        if close(line[0], inter):
+                            line.insert(0, list(inter))
+                    touch_segments.add(len(line_segments))
+                    if_touch = get_touch(line[0], self.info_list[i]["touch_points"])
+                    if if_touch != -1:
+                        touch_segments.add(len(line_segments))
+                    line_segments.append(line)
+                    line = [pt_wc]
+            if len(line) > 1:
+                for inter in self.info_list[i]["intersect_points"]:
                     if close(line[-1], inter):
                         line.append(list(inter))
                     if close(line[0], inter):
                         line.insert(0, list(inter))
-                touch_segments.add(len(line_segments))
-                if_touch = get_touch(line[0], info_list[i]["touch_points"])
+                if_touch = get_touch(line[0], self.info_list[i]["touch_points"])
+                if if_touch != -1:
+                    touch_segments.add(len(line_segments))
+                if_touch = get_touch(line[-1], self.info_list[i]["touch_points"])
                 if if_touch != -1:
                     touch_segments.add(len(line_segments))
                 line_segments.append(line)
-                line = [pt_wc]
-        if len(line) > 1:
-            for inter in info_list[i]["intersect_points"]:
-                if close(line[-1], inter):
-                    line.append(list(inter))
-                if close(line[0], inter):
-                    line.insert(0, list(inter))
-            if_touch = get_touch(line[0], info_list[i]["touch_points"])
-            if if_touch != -1:
-                touch_segments.add(len(line_segments))
-            if_touch = get_touch(line[-1], info_list[i]["touch_points"])
-            if if_touch != -1:
-                touch_segments.add(len(line_segments))
-            line_segments.append(line)
-    return line_segments, touch_segments
+        return line_segments, touch_segments
 
+    def getSegmentedAxons(self):
+        for i in range(len(self.info_list)):
+            line_segments, touch_segments = self.getLineSegments(i)
+            length = len(line_segments)
+            # print(length, touch_segments)
+            line_used = [False for j in range(length)]
+            count = 0
+            itr = 0
+            for j in touch_segments:
+                line_used[j] = True
+                count = count + 1
+                self.segmented_axons.append(line_segments[j])
+            while count < length and itr < 10:
+                itr += 1
+                for j in range(length):
+                    if line_used[j]:
+                        continue
+                    pt_start_j = line_segments[j][0]
+                    pt_end_j = line_segments[j][-1]
+                    if (not arr_in(pt_start_j, self.info_list[i]["intersect_points"])) and (
+                            not arr_in(pt_end_j, self.info_list[i]["intersect_points"])):
+                        line_used[j] = True
+                        count = count + 1
+                        continue
+                    orientation_approx = 181
+                    assigned_seg = -1
+                    if arr_in(pt_start_j, self.info_list[i]["intersect_points"]):
+                        for k in range(len(self.segmented_axons)):
+                            sa = self.segmented_axons[k]
+                            if pt_start_j == sa[0]:
+                                ori1 = getOrientation(pt_start_j, pt_end_j)
+                                ori2 = getOrientation(sa[0], sa[-1])
+                                ori_approx = abs(ori1 - ori2) % 180
+                                if ori_approx > 90:
+                                    ori_approx = 180 - ori_approx
+                                # print(ori_approx)
+                                if ori_approx < orientation_approx:
+                                    orientation_approx = ori_approx
+                                    assigned_seg = k
+                            if pt_start_j == sa[-1]:
+                                ori1 = getOrientation(pt_start_j, pt_end_j)
+                                ori2 = getOrientation(sa[0], sa[-1])
+                                ori_approx = abs(ori1 - ori2) % 180
+                                if ori_approx > 90:
+                                    ori_approx = 180 - ori_approx
+                                # print(ori_approx)
+                                if ori_approx < orientation_approx:
+                                    orientation_approx = ori_approx
+                                    assigned_seg = k
 
-def getSegmentedAxons(fil, info_list, nr_cell):
-    segmented_axons = []
-    show_orientation = []
-    for i in range(len(info_list)):
-        line_segments, touch_segments = getLineSegments(i, fil, info_list)
-        length = len(line_segments)
-        # print(length, touch_segments)
-        line_used = [False for j in range(length)]
-        count = 0
-        itr = 0
-        for j in touch_segments:
-            line_used[j] = True
-            count = count + 1
-            segmented_axons.append(line_segments[j])
-        while count < length and itr < 10:
-            itr += 1
-            for j in range(length):
-                if line_used[j]:
-                    continue
-                pt_start_j = line_segments[j][0]
-                pt_end_j = line_segments[j][-1]
-                if (not arr_in(pt_start_j, info_list[i]["intersect_points"])) and (
-                        not arr_in(pt_end_j, info_list[i]["intersect_points"])):
-                    line_used[j] = True
-                    count = count + 1
-                    continue
-                orientation_approx = 181
-                assigned_seg = -1
-                if arr_in(pt_start_j, info_list[i]["intersect_points"]):
-                    for k in range(len(segmented_axons)):
-                        sa = segmented_axons[k]
-                        if pt_start_j == sa[0]:
-                            ori1 = getOrientation(pt_start_j, pt_end_j)
-                            ori2 = getOrientation(sa[0], sa[-1])
-                            ori_approx = abs(ori1 - ori2) % 180
-                            if ori_approx > 90:
-                                ori_approx = 180 - ori_approx
-                            # print(ori_approx)
-                            if ori_approx < orientation_approx:
-                                orientation_approx = ori_approx
-                                assigned_seg = k
-                        if pt_start_j == sa[-1]:
-                            ori1 = getOrientation(pt_start_j, pt_end_j)
-                            ori2 = getOrientation(sa[0], sa[-1])
-                            ori_approx = abs(ori1 - ori2) % 180
-                            if ori_approx > 90:
-                                ori_approx = 180 - ori_approx
-                            # print(ori_approx)
-                            if ori_approx < orientation_approx:
-                                orientation_approx = ori_approx
-                                assigned_seg = k
+                    if arr_in(pt_end_j, self.info_list[i]["intersect_points"]):
+                        for k in range(len(self.segmented_axons)):
+                            sa = self.segmented_axons[k]
+                            if pt_end_j == sa[0]:
+                                ori1 = getOrientation(pt_start_j, pt_end_j)
+                                ori2 = getOrientation(sa[0], sa[-1])
+                                ori_approx = abs(ori1 - ori2) % 180
+                                if ori_approx > 90:
+                                    ori_approx = 180 - ori_approx
+                                # print(ori_approx)
+                                if ori_approx < orientation_approx:
+                                    orientation_approx = ori_approx
+                                    assigned_seg = k
+                            if pt_end_j == sa[-1]:
+                                ori1 = getOrientation(pt_start_j, pt_end_j)
+                                ori2 = getOrientation(sa[0], sa[-1])
+                                ori_approx = abs(ori1 - ori2) % 180
+                                if ori_approx > 90:
+                                    ori_approx = 180 - ori_approx
+                                # print(ori_approx)
+                                if ori_approx < orientation_approx:
+                                    orientation_approx = ori_approx
+                                    assigned_seg = k
+                    if assigned_seg != -1:
+                        count = count + 1
+                        line_used[j] = True
+                        if self.segmented_axons[assigned_seg][0] == pt_start_j:
+                            self.segmented_axons[assigned_seg].reverse()
+                        elif self.segmented_axons[assigned_seg][0] == pt_end_j:
+                            self.segmented_axons[assigned_seg].reverse()
+                            line_segments[j].reverse()
+                        elif self.segmented_axons[assigned_seg][-1] == pt_end_j:
+                            line_segments[j].reverse()
+                        self.segmented_axons[assigned_seg] = self.segmented_axons[assigned_seg] + line_segments[j]
 
-                if arr_in(pt_end_j, info_list[i]["intersect_points"]):
-                    for k in range(len(segmented_axons)):
-                        sa = segmented_axons[k]
-                        if pt_end_j == sa[0]:
-                            ori1 = getOrientation(pt_start_j, pt_end_j)
-                            ori2 = getOrientation(sa[0], sa[-1])
-                            ori_approx = abs(ori1 - ori2) % 180
-                            if ori_approx > 90:
-                                ori_approx = 180 - ori_approx
-                            # print(ori_approx)
-                            if ori_approx < orientation_approx:
-                                orientation_approx = ori_approx
-                                assigned_seg = k
-                        if pt_end_j == sa[-1]:
-                            ori1 = getOrientation(pt_start_j, pt_end_j)
-                            ori2 = getOrientation(sa[0], sa[-1])
-                            ori_approx = abs(ori1 - ori2) % 180
-                            if ori_approx > 90:
-                                ori_approx = 180 - ori_approx
-                            # print(ori_approx)
-                            if ori_approx < orientation_approx:
-                                orientation_approx = ori_approx
-                                assigned_seg = k
-                if assigned_seg != -1:
-                    count = count + 1
-                    line_used[j] = True
-                    if segmented_axons[assigned_seg][0] == pt_start_j:
-                        segmented_axons[assigned_seg].reverse()
-                    elif segmented_axons[assigned_seg][0] == pt_end_j:
-                        segmented_axons[assigned_seg].reverse()
-                        line_segments[j].reverse()
-                    elif segmented_axons[assigned_seg][-1] == pt_end_j:
-                        line_segments[j].reverse()
-                    segmented_axons[assigned_seg] = segmented_axons[assigned_seg] + line_segments[j]
+        index_to_remove = []
+        cell_axons_map = [[] for j in range(self.nr_cell)]
+        all_touch_points = []
+        for i in range(len(self.info_list)):
+            for ele in self.info_list[i]["touch_points"]:
+                all_touch_points.append(ele)
+        for i in range(len(self.segmented_axons)):
+            dist = cal_dist(self.segmented_axons[i])
+            if dist <= 44:
+                index_to_remove.append(i)
+                continue
+            touch_index1 = get_touch(self.segmented_axons[i][0], all_touch_points)
+            if touch_index1 != -1:
+                cell_axons_map[touch_index1 - 1].append(self.segmented_axons[i][:])
+            touch_index2 = get_touch(self.segmented_axons[i][-1], all_touch_points)
+            if touch_index2 != -1:
+                cell_axons_map[touch_index2 - 1].append(self.segmented_axons[i][::-1])
+            if touch_index1 != -1 and touch_index2 != -1:
+                self.show_orientation.append(False)
+            else:
+                self.show_orientation.append(True)
+        index_to_remove.reverse()
+        for i in index_to_remove:
+            del self.segmented_axons[i]
 
-    index_to_remove = []
-    cell_axons_map = [[] for j in range(nr_cell)]
-    all_touch_points = []
-    for i in range(len(info_list)):
-        for ele in info_list[i]["touch_points"]:
-            all_touch_points.append(ele)
-    for i in range(len(segmented_axons)):
-        dist = cal_dist(segmented_axons[i])
-        if dist <= 44:
-            index_to_remove.append(i)
-            continue
-        touch_index1 = get_touch(segmented_axons[i][0], all_touch_points)
-        if touch_index1 != -1:
-            cell_axons_map[touch_index1 - 1].append(segmented_axons[i][:])
-        touch_index2 = get_touch(segmented_axons[i][-1], all_touch_points)
-        if touch_index2 != -1:
-            cell_axons_map[touch_index2 - 1].append(segmented_axons[i][::-1])
-        if touch_index1 != -1 and touch_index2 != -1:
-            show_orientation.append(False)
-        else:
-            show_orientation.append(True)
-    index_to_remove.reverse()
-    for i in index_to_remove:
-        del segmented_axons[i]
-    return segmented_axons
-
-
-def plotOriginal(segmented_axons):
-    # File directory to the original image
-    plt_img = Image.open(r'data/Axon2.tif')
-    numpy_img = np.array(plt_img)
-    opencv_img = cv2.cvtColor(numpy_img, cv2.COLOR_RGB2BGR)
-    gray_img = cv2.cvtColor(opencv_img, cv2.COLOR_BGR2GRAY)
-    figure(figsize=(10, 10), dpi=80)
-    plt.imshow(gray_img, cmap='gray')
-    for i in range(len(segmented_axons)):
-        for j in range(len(segmented_axons[i])):
-            plt.scatter(segmented_axons[i][j][1], segmented_axons[i][j][0], c='orange', cmap='hot', marker=',', lw=1,
-                        s=2, vmin=0, vmax=len(segmented_axons))
-        plt.scatter(segmented_axons[i][0][1], segmented_axons[i][0][0], c='r', marker=',', lw=5, s=20)
-        plt.scatter(segmented_axons[i][-1][1], segmented_axons[i][-1][0], c='r', marker=',', lw=5, s=20)
-    plt.show()
+    def run(self, path, img):
+        self.img = img
+        self.img_path = path
+        # print(np.unique(img.reshape(-1, 3), axis=0))
+        self.separate_axon_and_cell()
+        self.get_touching_dict()
+        self.filter_axon()
+        self.analyze_axons()
+        self.getSegmentedAxons()
+        return self.segmented_axons
