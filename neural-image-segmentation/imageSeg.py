@@ -24,11 +24,24 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.ui.preButton.clicked.connect(self.pre_button_callback)
         self.ui.analyzeButton.clicked.connect(self.analyze_button_callback)
         self.ui.clearButton.clicked.connect(self.clear_button_callback)
-        self.file_name = ""
+        self.ui.saveButton.clicked.connect(self.save_button_callback)
+        self.input_file_name = ""
+        self.output_file_name = ""
         self.img = None
         self.gamma_image = None
         self.seg_image = None
         self.show()
+
+    def save_button_callback(self):
+        self.output_file_name = QtWidgets.QFileDialog.getSaveFileName(self)[0]
+        if self.output_file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
+            # save the output image...
+            pass
+        else:
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Failed")
+            msg.setText("Save Failed")
+            msg.show()
 
     def display_img(self, image):
         img = Image.fromarray(image, mode='RGB')
@@ -37,15 +50,16 @@ class ImgSeg(QtWidgets.QMainWindow):
         item = QtWidgets.QGraphicsPixmapItem(pix)
         scene = QtWidgets.QGraphicsScene(self)
         scene.addItem(item)
-        self.ui.graphicsView.setPhotoByScnen(scene)
+        self.ui.graphicsView2.setPhotoByScnen(scene)
 
     def tool_button_callback(self):
-        self.file_name = QtWidgets.QFileDialog.getOpenFileName(self)[0]
-        self.ui.textBrowser.setText(self.file_name)
-        if self.file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
-            self.img = readImg(self.file_name)
-            pix = QtGui.QPixmap(self.file_name)
-            self.ui.graphicsView.setPhoto(pix)
+        self.input_file_name = QtWidgets.QFileDialog.getOpenFileName(self)[0]
+        self.ui.textBrowser.setText(self.input_file_name)
+        if self.input_file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
+            self.img = readImg(self.input_file_name)
+            pix = QtGui.QPixmap(self.input_file_name)
+            self.ui.graphicsView1.setPhoto(pix)
+            self.ui.graphicsView2.setPhoto(pix)
         else:
             msg = QtWidgets.QMessageBox(self)
             msg.setWindowTitle("Failed")
@@ -82,7 +96,8 @@ class ImgSeg(QtWidgets.QMainWindow):
 
     def clear_button_callback(self):
         self.ui.textBrowser.setText("")
-        self.ui.graphicsView.setPhotoByScnen(None)
+        self.ui.graphicsView1.setPhotoByScnen(None)
+        self.ui.graphicsView2.setPhotoByScnen(None)
         self.img = None
         self.gamma_image = None
         self.seg_image = None
@@ -122,7 +137,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         im = Image.fromarray(img_annotated)
         im.save("result/result.png", format="png")
         pix = QtGui.QPixmap("result/result.png")
-        self.ui.graphicsView.setPhoto(pix)
+        self.ui.graphicsView2.setPhoto(pix)
 
         _translate = QtCore.QCoreApplication.translate
         length_dist = [0, 0, 0, 0, 0]
