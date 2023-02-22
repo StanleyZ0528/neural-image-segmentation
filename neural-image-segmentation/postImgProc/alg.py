@@ -289,3 +289,16 @@ class SegmentationAnalysis:
         self.analyze_axons()
         self.getSegmentedAxons()
         return self.segmented_axons
+
+    # return the pixel closest to (x, y) and whether it is an axon
+    def clickOnPixel(self, x, y):
+        r1, c1 = np.nonzero(self.labeled_cell)
+        min_idx1 = ((r1 - x)**2 + (c1 - y)**2).argmin()
+
+        # r2, c2 = np.nonzero(self.labeled_cell)
+        # min_idx2 = ((r2 - x)**2 + (c2 - y)**2).argmin()
+        # if (r1[min_idx1] - x)**2 + (c1[min_idx1] - y)**2 < (r2[min_idx2] - x)**2 + (c2[min_idx2] - y)**2:
+        #    return r1[min_idx1], c1[min_idx1], True
+        # if (r1[min_idx1] - x) ** 2 + (c1[min_idx1] - y) ** 2 > 1600:
+        #    return -1, -1, False
+        return r1[min_idx1], c1[min_idx1], False

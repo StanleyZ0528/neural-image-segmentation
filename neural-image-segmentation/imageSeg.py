@@ -109,7 +109,7 @@ class ImgSeg(QtWidgets.QMainWindow):
 
     def analyze_button_callback(self):
         segmentation_analysis = SegmentationAnalysis()
-        segmented_axons = segmentation_analysis.run(self.file_name, self.img)
+        segmented_axons = segmentation_analysis.run(self.input_file_name, self.img)
         img_annotated = self.img.copy()
         # print(len(img_annotated), len(img_annotated[0]))
         height = len(img_annotated)
@@ -141,12 +141,26 @@ class ImgSeg(QtWidgets.QMainWindow):
         #             continue
         #         img_annotated[coord[0]][coord[1]] = [0, 255, 0]
         # display the result
+        pos_x, pos_y, isAxon = segmentation_analysis.clickOnPixel(900, 200)
+        for i in range(height):
+            for j in range(width):
+                if segmentation_analysis.labeled_cell[pos_x][pos_y] == segmentation_analysis.labeled_cell[i][j]:
+                    img_annotated[i][j] = [140, 255, 255]
+                    if segmentation_analysis.cell_boundary_mask[i][j] != 0:
+                        img_annotated[max(i - 1, 0): min(i + 1, height - 1),
+                        max(j - 1, 0): min(j + 1, width - 1)] = [255, 255, 0]
         im = Image.fromarray(img_annotated)
         im.save("result/result.png", format="png")
         pix = QtGui.QPixmap("result/result.png")
         self.ui.graphicsView2.setPhoto(pix)
 
         _translate = QtCore.QCoreApplication.translate
+        self.ui.cellInfo.setText(_translate("MainWindow",
+                                        "Cell Information:\n"
+                                        "Cell Index: " + str(segmentation_analysis.labeled_cell[pos_x][pos_y]) + "\n"
+                                        "Cell Area: " + "{:.2f}".format(np.isclose(segmentation_analysis.labeled_cell[pos_x][pos_y], segmentation_analysis.labeled_cell).sum() / 2.22 / 2.22) + "µm^2\n" +
+                                        "Connected Axons count: "  + "\n"
+                                        "Connected Axon Indexes: "  + "\n"))
         length_dist = [0, 0, 0, 0, 0]
         total_length = 0
         axon_set = [[0]*4 for i in range(5)]
@@ -230,6 +244,10 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.ui.infoboxLayout.addWidget(chartView)
         axonOrientationWidget = QtCharts.QPolarChart
         # self.display_img(im)
+        print(segmentation_analysis.clickOnPixel(100, 200))
+        print(segmentation_analysis.clickOnPixel(100, 700))
+        print(segmentation_analysis.clickOnPixel(900, 200))
+        print(segmentation_analysis.clickOnPixel(900, 700))
 
     def eventFilter(self, source, event):
         if source is self.scene and event.type() == QtCore.QEvent.Type.GraphicsSceneMouseDoubleClick:
