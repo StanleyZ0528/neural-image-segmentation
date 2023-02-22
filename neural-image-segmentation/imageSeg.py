@@ -9,6 +9,7 @@ from unet.unet_utils import gamma_correction, unet_predict
 from postImgProc.utils import *
 from postImgProc.alg import *
 import pyqtgraph as pg
+from skimage.morphology import flood_fill
 
 import os
 
@@ -30,7 +31,8 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.img = None
         self.gamma_image = None
         self.seg_image = None
-        self.show()
+        self.scene = QtWidgets.QGraphicsScene(self)
+        self.scene.installEventFilter(self)
 
     def save_button_callback(self):
         self.output_file_name = QtWidgets.QFileDialog.getSaveFileName(self)[0]
@@ -47,10 +49,8 @@ class ImgSeg(QtWidgets.QMainWindow):
         img = Image.fromarray(image, mode='RGB')
         qt_img = ImageQt.ImageQt(img)
         pix = QtGui.QPixmap.fromImage(qt_img)
-        item = QtWidgets.QGraphicsPixmapItem(pix)
-        scene = QtWidgets.QGraphicsScene(self)
-        scene.addItem(item)
-        self.ui.graphicsView2.setPhotoByScnen(scene)
+        self.pixmap_item = self.scene.addPixmap(pix)
+        self.ui.graphicsView2.setPhotoByScnen(self.scene)
 
     def tool_button_callback(self):
         self.input_file_name = QtWidgets.QFileDialog.getOpenFileName(self)[0]
@@ -170,8 +170,22 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.ui.infoboxLayout.addWidget(graphWidget)
         # self.display_img(im)
 
+    def eventFilter(self, source, event):
+        if source is self.scene and event.type() == QtCore.QEvent.Type.GraphicsSceneMouseDoubleClick:
+            spf = event.scenePos()
+            lpf = self.pixmap_item.mapFromScene(spf)
+            brf = self.pixmap_item.boundingRect()
+            if brf.contains(lpf):
+                lp = lpf.toPoint()
+                print(lp)
+                # if self.seg_image is not None:
+                #     flood_fill(self.seg_image, (lp.x()-1,lp.y()-1,), np.array([255,0,0]))
+                #     print(self.seg_image)
+        return super(ImgSeg, self).eventFilter(source, event)
+
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     myapp = ImgSeg()
+    myapp.show()
     sys.exit(app.exec())
