@@ -11,8 +11,6 @@ import astropy.units as u
 from .utils import *
 from scipy.ndimage.morphology import binary_dilation
 
-CELLFILTER = 200
-
 class SegmentationAnalysis:
     def __init__(self):
         self.axon_color = np.array([255, 129, 31])  # Axon color pixel mask
@@ -23,6 +21,7 @@ class SegmentationAnalysis:
         self.labeled_axon = []  # Labeled Axons with different numbers
         self.labeled_cell = []  # Labeled Cell Clusters with different numbers
         self.nr_cell = 0  # Total number of cell clusters
+        self.nr_filtered_cell = 0   # Total number of cell clusters after filtering
 
         self.axons_to_cells = {}
         self.fil = None
@@ -31,6 +30,8 @@ class SegmentationAnalysis:
         self.segmented_axons = []
         self.show_orientation = []
         self.cell_boundary_mask = []
+        self.cell_axons_map = []
+        self.cell_area_index = []
 
     def readImg(self, path):
         self.img_path = path
@@ -43,12 +44,20 @@ class SegmentationAnalysis:
         self.labeled_axon, nr_axon = ndimage.label(axon_filter)
         self.labeled_cell, self.nr_cell = ndimage.label(cell_filter)
 
-    def filter_cells(self):
-        filter_size = CELLFILTER * 2.22 * 2.22
+    def filter_cells(self, cell_filter_size):
+        self.cell_area_index = [[] for j in range(self.nr_cell)]
+        filter_size = cell_filter_size * 2.22 * 2.22
+        self.nr_filtered_cell = self.nr_cell
+        for i in range(len(self.labeled_cell)):
+            for j in range(len(self.labeled_cell[0])):
+                if self.labeled_cell[i][j] != 0:
+                    self.cell_area_index[self.labeled_cell[i][j]-1].append([i, j])
         for i in range(1, self.nr_cell):
             area = np.isclose(i, self.labeled_cell).sum()
             if area < filter_size:
+                self.nr_filtered_cell -= 1
                 self.labeled_cell[self.labeled_cell == i] = 0
+                self.cell_area_index[self.labeled_cell[i][j]-1].clear()
 
             print("cell:", i, area)
 
@@ -254,7 +263,7 @@ class SegmentationAnalysis:
                         self.segmented_axons[assigned_seg] = self.segmented_axons[assigned_seg] + line_segments[j]
 
         index_to_remove = []
-        cell_axons_map = [[] for j in range(self.nr_cell)]
+        self.cell_axons_map = [[] for j in range(self.nr_cell)]
         all_touch_points = []
         for i in range(len(self.info_list)):
             for ele in self.info_list[i]["touch_points"]:
@@ -264,26 +273,28 @@ class SegmentationAnalysis:
             if dist <= 20:
                 index_to_remove.append(i)
                 continue
-            touch_index1 = get_touch(self.segmented_axons[i][0], all_touch_points)
-            if touch_index1 != -1:
-                cell_axons_map[touch_index1 - 1].append(self.segmented_axons[i][:])
-            touch_index2 = get_touch(self.segmented_axons[i][-1], all_touch_points)
-            if touch_index2 != -1:
-                cell_axons_map[touch_index2 - 1].append(self.segmented_axons[i][::-1])
-            if touch_index1 != -1 and touch_index2 != -1:
-                self.show_orientation.append(False)
-            else:
-                self.show_orientation.append(True)
         index_to_remove.reverse()
         for i in index_to_remove:
             del self.segmented_axons[i]
 
-    def run(self, path, img):
+        for i in range(len(self.segmented_axons)):
+            touch_index1 = get_touch(self.segmented_axons[i][0], all_touch_points)
+            if touch_index1 != -1:
+                self.cell_axons_map[touch_index1 - 1].append(i)
+            touch_index2 = get_touch(self.segmented_axons[i][-1], all_touch_points)
+            if touch_index2 != -1:
+                self.cell_axons_map[touch_index2 - 1].append(i)
+            if touch_index1 != -1 and touch_index2 != -1:
+                self.show_orientation.append(False)
+            else:
+                self.show_orientation.append(True)
+
+    def run(self, path, img, cell_filter_size):
         self.img = img
         self.img_path = path
         # print(np.unique(img.reshape(-1, 3), axis=0))
         self.separate_axon_and_cell()
-        self.filter_cells()
+        self.filter_cells(cell_filter_size)
         self.get_touching_dict()
         self.filter_axon()
         self.analyze_axons()
@@ -301,4 +312,5 @@ class SegmentationAnalysis:
         #    return r1[min_idx1], c1[min_idx1], True
         # if (r1[min_idx1] - x) ** 2 + (c1[min_idx1] - y) ** 2 > 1600:
         #    return -1, -1, False
-        return r1[min_idx1], c1[min_idx1], False
+        # return r1[min_idx1], c1[min_idx1], False
+        return self.labeled_cell[r1[min_idx1]][c1[min_idx1]]

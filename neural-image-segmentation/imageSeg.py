@@ -31,13 +31,132 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.ui.analyzeButton.clicked.connect(self.analyze_button_callback)
         self.ui.clearButton.clicked.connect(self.clear_button_callback)
         self.ui.saveButton.clicked.connect(self.save_button_callback)
+        self.ui.setFilterButton.clicked.connect(self.set_filter_callback)
+        self.ui.getCellIndexButton.clicked.connect(self.get_cell_index_callback)
+        self.ui.getAxonIndexButton.clicked.connect(self.get_axon_index_callback)
         self.input_file_name = ""
         self.output_file_name = ""
         self.img = None
         self.gamma_image = None
         self.seg_image = None
+        self.img_annotated = None
         self.scene = QtWidgets.QGraphicsScene(self)
         self.scene.installEventFilter(self)
+        self.cell_filter_size = 200
+        self.cell_index = None
+        self.axon_index = None
+        self.chartView = ""
+        self.segmentation_analysis = ""
+        self.segmented_axons = []
+
+    def set_filter_callback(self):
+        try:
+            self.cell_filter_size = int(self.ui.cellFilterTextbox.text())
+            self.ui.cellFilterTextbox.setPlaceholderText(self.ui.cellFilterTextbox.text())
+            self.ui.cellFilterTextbox.setText("")
+        except ValueError:
+            self.ui.cellFilterTextbox.setText("")
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Failed")
+            msg.setText("Input cell filter size is not an integer")
+            msg.show()
+
+    def get_cell_index_callback(self):
+        try:
+            self.cell_index = int(self.ui.cellIndexTextbox.text())
+            self.ui.cellIndexTextbox.setPlaceholderText(self.ui.cellIndexTextbox.text())
+            self.ui.cellIndexTextbox.setText("")
+        except ValueError:
+            self.ui.cellIndexTextbox.setText("")
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Failed")
+            msg.setText("Input cell index is not an integer")
+            msg.show()
+            return
+        if self.cell_index <= 0 or self.cell_index > self.segmentation_analysis.nr_cell:
+            self.ui.cellIndexTextbox.setText("")
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Failed")
+            msg.setText("Input cell index out of range")
+            msg.show()
+            return
+
+        img_annotated = self.img_annotated.copy()
+        # print(len(img_annotated), len(img_annotated[0]))
+        height = len(img_annotated)
+        width = len(img_annotated[0])
+        found = False
+        # display the result
+        for p in self.segmentation_analysis.cell_area_index[self.cell_index - 1]:
+            i = p[0]
+            j = p[1]
+            found = True
+            img_annotated[i][j] = [140, 255, 255]
+            if self.segmentation_analysis.cell_boundary_mask[i][j] != 0:
+                img_annotated[max(i - 1, 0): min(i + 1, height - 1),
+                max(j - 1, 0): min(j + 1, width - 1)] = [255, 255, 0]
+        if not found:
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Failed")
+            msg.setText("Input cell index is filtered out due to size limit")
+            msg.show()
+            return
+
+        # Clear the previous cell information
+        _translate = QtCore.QCoreApplication.translate
+        self.ui.cellInfo.setText(_translate("MainWindow", "Cell Information:"))
+        self.display_img(img_annotated)
+        cell_index_str = ""
+        length = len(self.segmentation_analysis.cell_axons_map[self.cell_index-1])
+        for i in self.segmentation_analysis.cell_axons_map[self.cell_index-1]:
+            cell_index_str += " " + str(i)
+        self.ui.cellInfo.setText(_translate("MainWindow",
+                                            "Cell Information:\n"
+                                            "Cell Index: " + str(
+                                                self.cell_index) + "\n"
+                                                                                                    "Cell Area: " + "{:.2f}".format(
+                                                np.isclose(self.cell_index,
+                                                           self.segmentation_analysis.labeled_cell).sum() / 2.22 / 2.22) + "µm^2\n" +
+                                            "Connected Axons count: " + str(length) +"\n"
+                                                                        "Connected Axon Indexes: " + cell_index_str + "\n"))
+
+    def get_axon_index_callback(self):
+        try:
+            self.axon_index = int(self.ui.axonIndexTextbox.text())
+            self.ui.axonIndexTextbox.setPlaceholderText(self.ui.axonIndexTextbox.text())
+            self.ui.axonIndexTextbox.setText("")
+        except ValueError:
+            self.ui.axonIndexTextbox.setText("")
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Failed")
+            msg.setText("Input cell index is not an integer")
+            msg.show()
+            return
+        if self.axon_index < 0 or self.cell_index >= len(self.segmented_axons):
+            self.ui.cellIndexTextbox.setText("")
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Failed")
+            msg.setText("Input axon index out of range")
+            msg.show()
+            return
+        img_annotated = self.img_annotated.copy()
+        height = len(self.img_annotated)
+        width = len(self.img_annotated[0])
+        for pixel in self.segmented_axons[self.axon_index]:
+            img_annotated[max(pixel[0] - 3, 0): min(pixel[0] + 3, height),
+            max(pixel[1] - 3, 0): min(pixel[1] + 3, width)] = [0, 255, 255]
+        im = Image.fromarray(img_annotated)
+        im.save("result/result.png", format="png")
+        pix = QtGui.QPixmap("result/result.png")
+        self.pixmap_item = self.scene.addPixmap(pix)
+        self.ui.graphicsView2.setPhotoByScnen(self.scene)
+
+    def get_cell_onclick_callback(self, x, y):
+        print(x, y)
+        if self.img_annotated is not None:
+            self.cell_index = self.segmentation_analysis.clickOnPixel(x, y)
+            self.ui.cellIndexTextbox.setText(str(self.cell_index))
+            self.get_cell_index_callback()
 
     def save_button_callback(self):
         self.output_file_name = QtWidgets.QFileDialog.getSaveFileName(self)[0]
@@ -52,8 +171,8 @@ class ImgSeg(QtWidgets.QMainWindow):
 
     def display_img(self, image):
         img = Image.fromarray(image, mode='RGB')
-        qt_img = ImageQt.ImageQt(img)
-        pix = QtGui.QPixmap.fromImage(qt_img)
+        img.save("result/result.png", format="png")
+        pix = QtGui.QPixmap("result/result.png")
         self.pixmap_item = self.scene.addPixmap(pix)
         self.ui.graphicsView2.setPhotoByScnen(self.scene)
 
@@ -103,73 +222,56 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.ui.textBrowser.setText("")
         self.ui.graphicsView1.setPhotoByScnen(None)
         self.ui.graphicsView2.setPhotoByScnen(None)
+        _translate = QtCore.QCoreApplication.translate
+        self.ui.info.setText(_translate("MainWindow", "Information:"))
+        self.ui.cellInfo.setText(_translate("MainWindow", "Cell Information:"))
+        self.ui.infoboxLayout.removeWidget(self.chartView)
+        self.chartView = ""
+        self.input_file_name = ""
+        self.output_file_name = ""
         self.img = None
         self.gamma_image = None
         self.seg_image = None
+        self.img_annotated = None
+        self.scene = QtWidgets.QGraphicsScene(self)
+        self.scene.installEventFilter(self)
+        self.cell_filter_size = 200
+        self.cell_index = None
+        self.axon_index = None
+        self.chartView = ""
+        self.segmentation_analysis = ""
+        self.segmented_axons = []
 
     def analyze_button_callback(self):
-        segmentation_analysis = SegmentationAnalysis()
-        segmented_axons = segmentation_analysis.run(self.input_file_name, self.img)
-        img_annotated = self.img.copy()
+        self.segmentation_analysis = SegmentationAnalysis()
+        self.segmented_axons = self.segmentation_analysis.run(self.input_file_name, self.img, self.cell_filter_size)
+
+        self.img_annotated = self.img.copy()
         # print(len(img_annotated), len(img_annotated[0]))
-        height = len(img_annotated)
-        width = len(img_annotated[0])
+        height = len(self.img_annotated)
+        width = len(self.img_annotated[0])
         # print(img_annotated[0][0])
         for i in range(height):
             for j in range(width):
-                if segmentation_analysis.cell_boundary_mask[i][j] != 0:
-                    img_annotated[max(i - 1, 0): min(i + 1, height - 1),
+                if self.segmentation_analysis.cell_boundary_mask[i][j] != 0:
+                    self.img_annotated[max(i - 1, 0): min(i + 1, height - 1),
                     max(j - 1, 0): min(j + 1, width - 1)] = [255, 255, 0]
-        for axon in segmented_axons:
+        for axon in self.segmented_axons:
             for pixel in axon:
                 # print(pixel)
-                img_annotated[max(pixel[0] - 3, 0): min(pixel[0] + 3, height - 1),
+                self.img_annotated[max(pixel[0] - 3, 0): min(pixel[0] + 3, height - 1),
                 max(pixel[1] - 3, 0): min(pixel[1] + 3, width - 1)] = [255, 0, 0]
-        # print(img_annotated)
-        # for item in info_list:
-        #     touch_points = item["touch_points"]
-        #     intersect_points = item["intersect_points"]
-        #     end_points = item["end_points"]
-        #     for coord in touch_points:
-        #         img_annotated[coord[0]][coord[1]] = [255, 0, 0]
-        #     for coord in intersect_points:
-        #         if not type(coord) is tuple:
-        #             continue
-        #         img_annotated[coord[0]][coord[1]] = [0, 0, 255]
-        #     for coord in end_points:
-        #         if not type(coord) is tuple:
-        #             continue
-        #         img_annotated[coord[0]][coord[1]] = [0, 255, 0]
-        # display the result
-        pos_x, pos_y, isAxon = segmentation_analysis.clickOnPixel(900, 200)
-        for i in range(height):
-            for j in range(width):
-                if segmentation_analysis.labeled_cell[pos_x][pos_y] == segmentation_analysis.labeled_cell[i][j]:
-                    img_annotated[i][j] = [140, 255, 255]
-                    if segmentation_analysis.cell_boundary_mask[i][j] != 0:
-                        img_annotated[max(i - 1, 0): min(i + 1, height - 1),
-                        max(j - 1, 0): min(j + 1, width - 1)] = [255, 255, 0]
-        im = Image.fromarray(img_annotated)
-        im.save("result/result.png", format="png")
-        pix = QtGui.QPixmap("result/result.png")
-        self.ui.graphicsView2.setPhoto(pix)
-
+        self.display_img(self.img_annotated)
         _translate = QtCore.QCoreApplication.translate
-        self.ui.cellInfo.setText(_translate("MainWindow",
-                                        "Cell Information:\n"
-                                        "Cell Index: " + str(segmentation_analysis.labeled_cell[pos_x][pos_y]) + "\n"
-                                        "Cell Area: " + "{:.2f}".format(np.isclose(segmentation_analysis.labeled_cell[pos_x][pos_y], segmentation_analysis.labeled_cell).sum() / 2.22 / 2.22) + "µm^2\n" +
-                                        "Connected Axons count: "  + "\n"
-                                        "Connected Axon Indexes: "  + "\n"))
         length_dist = [0, 0, 0, 0, 0]
         total_length = 0
-        axon_set = [[0]*4 for i in range(5)]
+        axon_set = [[0] * 4 for i in range(5)]
         rangeMax = 0
         # length_range = ["20-50", "50-100", "100-150", "150-200", "200+"]
         length_range = [20, THRESHOLD0, THRESHOLD1, THRESHOLD2, THRESHOLD3]
-        for i in range(len(segmented_axons)):
-            length = pixel_to_length(cal_dist(segmented_axons[i]))
-            orientation = getOrientation(segmented_axons[i][0], segmented_axons[i][-1])
+        for i in range(len(self.segmented_axons)):
+            length = pixel_to_length(cal_dist(self.segmented_axons[i]))
+            orientation = getOrientation(self.segmented_axons[i][0], self.segmented_axons[i][-1])
             total_length += length
             index = 0
             if length <= THRESHOLD0:
@@ -192,7 +294,7 @@ class ImgSeg(QtWidgets.QMainWindow):
             else:
                 axon_set[index][3] += 1
         length_range = max(max(x) for x in axon_set)
-        average_length = total_length / len(segmented_axons)
+        average_length = total_length / len(self.segmented_axons)
         set0 = QtCharts.QBarSet("20-" + str(THRESHOLD0))
         set1 = QtCharts.QBarSet(str(THRESHOLD0) + "-" + str(THRESHOLD1))
         set2 = QtCharts.QBarSet(str(THRESHOLD1) + "-" + str(THRESHOLD2))
@@ -205,8 +307,8 @@ class ImgSeg(QtWidgets.QMainWindow):
         set4.append(axon_set[4])
         self.ui.info.setText(_translate("MainWindow",
                                         "Information:\n"
-                                        "Cells count: " + str(segmentation_analysis.nr_cell) + "\n" +
-                                        "Axons count: " + str(len(segmented_axons)) + "\n" +
+                                        "Cells count: " + str(self.segmentation_analysis.nr_filtered_cell) + "\n" +
+                                        "Axons count: " + str(len(self.segmented_axons)) + "\n" +
                                         "Average axon length: " + "{:.2f}".format(average_length) + "μm\n"))
         series = QtCharts.QBarSeries()
         series.append(set0)
@@ -239,15 +341,11 @@ class ImgSeg(QtWidgets.QMainWindow):
         # axonLengthWidget.setBackground((255, 255, 255, 0))
         # axonLengthWidget.plot(length_range, length_dist, symbol='o', symbolPen=None, symbolSize=10,
         #                  symbolBrush=(100, 100, 255, 255))
-        chartView = QtCharts.QChartView(axonLengthWidget)
-        chartView.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        self.ui.infoboxLayout.addWidget(chartView)
+        self.chartView = QtCharts.QChartView(axonLengthWidget)
+        self.chartView.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        self.ui.infoboxLayout.addWidget(self.chartView)
         axonOrientationWidget = QtCharts.QPolarChart
         # self.display_img(im)
-        print(segmentation_analysis.clickOnPixel(100, 200))
-        print(segmentation_analysis.clickOnPixel(100, 700))
-        print(segmentation_analysis.clickOnPixel(900, 200))
-        print(segmentation_analysis.clickOnPixel(900, 700))
 
     def eventFilter(self, source, event):
         if source is self.scene and event.type() == QtCore.QEvent.Type.GraphicsSceneMouseDoubleClick:
@@ -256,7 +354,7 @@ class ImgSeg(QtWidgets.QMainWindow):
             brf = self.pixmap_item.boundingRect()
             if brf.contains(lpf):
                 lp = lpf.toPoint()
-                print(lp)
+                self.get_cell_onclick_callback(lp.y(), lp.x())
                 # if self.seg_image is not None:
                 #     flood_fill(self.seg_image, (lp.x()-1,lp.y()-1,), np.array([255,0,0]))
                 #     print(self.seg_image)
