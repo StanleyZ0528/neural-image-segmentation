@@ -223,7 +223,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.ui.graphicsView1.setPhotoByScnen(None)
         self.ui.graphicsView2.setPhotoByScnen(None)
         _translate = QtCore.QCoreApplication.translate
-        self.ui.info.setText(_translate("MainWindow", "Information:"))
+        self.ui.info.setText(_translate("MainWindow", "General Information:"))
         self.ui.cellInfo.setText(_translate("MainWindow", "Cell Information:"))
         self.ui.infoboxLayout.removeWidget(self.chartView)
         self.chartView = ""
@@ -306,7 +306,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         set3.append(axon_set[3])
         set4.append(axon_set[4])
         self.ui.info.setText(_translate("MainWindow",
-                                        "Information:\n"
+                                        "General Information:\n"
                                         "Cells count: " + str(self.segmentation_analysis.nr_filtered_cell) + "\n" +
                                         "Axons count: " + str(len(self.segmented_axons)) + "\n" +
                                         "Average axon length: " + "{:.2f}".format(average_length) + "μm\n"))
@@ -318,7 +318,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         series.append(set4)
         axonLengthWidget = QtCharts.QChart()
         axonLengthWidget.addSeries(series)
-        axonLengthWidget.setTitle("Axon Length Distribution")
+        axonLengthWidget.setTitle("Axon Length/Orientation Distribution")
         # axonLengthWidget.setLabel('left', 'Count', color="b", size="12pt")
         # axonLengthWidget.setLabel('bottom', 'Length', color="b", size="12pt")
         categories = ["N", "E", "S", "W"]
