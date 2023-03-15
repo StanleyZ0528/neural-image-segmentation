@@ -88,9 +88,9 @@ def unet_predict(input_image):
     output_image = unet_model(input_image[None, :]).argmax(dim=1)[0].detach().numpy()
     result = np.zeros((output_image.shape[0], output_image.shape[1], 3), dtype=int)
 
-    result[output_image == 0] = np.array([250, 170,  30])
-    result[output_image == 1] = np.array([244,  35, 232])
-    result[output_image == 2] = np.array([119,  11,  32])
+    result[output_image == 0] = np.array([0, 0, 0])
+    result[output_image == 1] = np.array([255, 0, 255])
+    result[output_image == 2] = np.array([255, 129, 31])
     result[output_image == 3] = np.array([255,  255,  255])
 
     return result

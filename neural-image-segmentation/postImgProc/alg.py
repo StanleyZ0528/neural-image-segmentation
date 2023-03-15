@@ -32,6 +32,7 @@ class SegmentationAnalysis:
         self.cell_boundary_mask = []
         self.cell_axons_map = []
         self.cell_area_index = []
+        self.cell_area_map = {}
 
     def readImg(self, path):
         self.img_path = path
@@ -58,8 +59,8 @@ class SegmentationAnalysis:
                 self.nr_filtered_cell -= 1
                 self.labeled_cell[self.labeled_cell == i] = 0
                 self.cell_area_index[self.labeled_cell[i][j]-1].clear()
-
-            print("cell:", i, area)
+            else:
+                self.cell_area_map[i] = area * 2.22 * 2.22
 
         k = np.ones((3, 3), dtype=int)  # for 4-connected
         self.cell_boundary_mask = binary_dilation(self.labeled_cell == 0, k) & (self.labeled_cell != 0)

@@ -1,4 +1,5 @@
 # This is the main script to start the application for our Neural Image Segmentation project
+import json
 import warnings
 import sys
 import numpy as np
@@ -20,6 +21,19 @@ THRESHOLD1 = 75
 THRESHOLD2 = 100
 THRESHOLD3 = 150
 
+TYPICALCELLAREA = 3000
+
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)
+
 
 class ImgSeg(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
@@ -34,6 +48,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.ui.setFilterButton.clicked.connect(self.set_filter_callback)
         self.ui.getCellIndexButton.clicked.connect(self.get_cell_index_callback)
         self.ui.getAxonIndexButton.clicked.connect(self.get_axon_index_callback)
+        self.ui.exportButton.clicked.connect(self.export_button_callback)
         self.input_file_name = ""
         self.output_file_name = ""
         self.img = None
@@ -111,12 +126,12 @@ class ImgSeg(QtWidgets.QMainWindow):
         for i in self.segmentation_analysis.cell_axons_map[self.cell_index-1]:
             cell_index_str += " " + str(i)
         self.ui.cellInfo.setText(_translate("MainWindow",
-                                            "Cell Information:\n"
-                                            "Cell Index: " + str(
-                                                self.cell_index) + "\n"
-                                                                                                    "Cell Area: " + "{:.2f}".format(
+                                            "Cell Cluster Information:\n"
+                                            "Cell Cluster Index: " + str(
+                                                self.cell_index) + "\nCell Area: " + "{:.2f}".format(
                                                 np.isclose(self.cell_index,
-                                                           self.segmentation_analysis.labeled_cell).sum() / 2.22 / 2.22) + "µm^2\n" +
+                                                           self.segmentation_analysis.labeled_cell).sum() / 2.22 / 2.22) +
+                                            "µm^2\nEstimated Cell Count: " + "{:.0f}".format((self.segmentation_analysis.cell_area_map[self.cell_index] / TYPICALCELLAREA).round()) + "\n"
                                             "Connected Axons count: " + str(length) +"\n"
                                                                         "Connected Axon Indexes: " + cell_index_str + "\n"))
 
@@ -159,14 +174,44 @@ class ImgSeg(QtWidgets.QMainWindow):
             self.get_cell_index_callback()
 
     def save_button_callback(self):
-        self.output_file_name = QtWidgets.QFileDialog.getSaveFileName(self)[0]
-        if self.output_file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
-            # save the output image...
-            pass
+        if self.seg_image is not None:
+            img = Image.fromarray(self.seg_image.astype(np.uint8), mode='RGB')
+            head_tail = os.path.split(self.input_file_name)
+            img.save("result/segmentation/result-" + head_tail[1][:-4] + ".png", format="png")
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Success")
+            msg.setText("Segmentation Image Successfully saved")
+            msg.show()
         else:
             msg = QtWidgets.QMessageBox(self)
             msg.setWindowTitle("Failed")
             msg.setText("Save Failed")
+            msg.show()
+
+    def export_button_callback(self):
+        if self.segmentation_analysis != "":
+            info_dict = {}
+            info_dict["Filtered Cell Clusters Count"] = self.segmentation_analysis.nr_filtered_cell
+            info_dict["Cell Cluters Count"] = self.segmentation_analysis.nr_cell
+            # info_dict["Axons to Cells"] = self.segmentation_analysis.axons_to_cells
+            # info_dict["Info List"] = self.segmentation_analysis.info_list
+            info_dict["Axons Count"] = len(self.segmented_axons)
+            info_dict["Segmented Axons"] = {}
+            for i in range(len(self.segmented_axons)):
+                info_dict["Segmented Axons"][i] = self.segmentation_analysis.segmented_axons[i]
+            # info_dict["Cell to Axons"] = self.segmentation_analysis.cell_axons_map
+            info_dict["Cell areas"] = self.segmentation_analysis.cell_area_map
+            head_tail = os.path.split(self.input_file_name)
+            with open("result/data/" + head_tail[1][:-4] + ".json", "w") as outfile:
+                json.dump(info_dict, outfile, cls=NpEncoder)
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Success")
+            msg.setText("Analysis Data Successfully exported")
+            msg.show()
+        else:
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Failed")
+            msg.setText("Export Failed")
             msg.show()
 
     def display_img(self, image):
@@ -295,6 +340,18 @@ class ImgSeg(QtWidgets.QMainWindow):
                 axon_set[index][3] += 1
         length_range = max(max(x) for x in axon_set)
         average_length = total_length / len(self.segmented_axons)
+        cell_count = 0
+        cell_area = 0
+        for v in self.segmentation_analysis.cell_area_map.values():
+            cell_count += (v / TYPICALCELLAREA).round()
+            cell_area += v
+        self.ui.info.setText(_translate("MainWindow",
+                                        "General Information:\n"
+                                        "Cell clusters count: " + str(self.segmentation_analysis.nr_filtered_cell) + "\n" +
+                                        "Axons count: " + str(len(self.segmented_axons)) + "\n" +
+                                        "Estimated cells count: " + "{:.0f}".format(cell_count) + "\n" +
+                                        "Total cell area: " + "{:.0f}".format(cell_area) + "µm^2\n" +
+                                        "Average axon length: " + "{:.0f}".format(average_length) + "μm\n"))
         set0 = QtCharts.QBarSet("20-" + str(THRESHOLD0))
         set1 = QtCharts.QBarSet(str(THRESHOLD0) + "-" + str(THRESHOLD1))
         set2 = QtCharts.QBarSet(str(THRESHOLD1) + "-" + str(THRESHOLD2))
@@ -305,11 +362,6 @@ class ImgSeg(QtWidgets.QMainWindow):
         set2.append(axon_set[2])
         set3.append(axon_set[3])
         set4.append(axon_set[4])
-        self.ui.info.setText(_translate("MainWindow",
-                                        "General Information:\n"
-                                        "Cells count: " + str(self.segmentation_analysis.nr_filtered_cell) + "\n" +
-                                        "Axons count: " + str(len(self.segmented_axons)) + "\n" +
-                                        "Average axon length: " + "{:.2f}".format(average_length) + "μm\n"))
         series = QtCharts.QBarSeries()
         series.append(set0)
         series.append(set1)
@@ -362,6 +414,12 @@ class ImgSeg(QtWidgets.QMainWindow):
 
 
 if __name__ == '__main__':
+    if not os.path.exists('./result'):
+        os.makedirs('./result')
+    if not os.path.exists('./result/data'):
+        os.makedirs('./result/data')
+    if not os.path.exists('./result/segmentation'):
+        os.makedirs('./result/segmentation')
     app = QtWidgets.QApplication(sys.argv)
     myapp = ImgSeg()
     myapp.show()
