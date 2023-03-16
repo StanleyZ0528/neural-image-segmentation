@@ -1,4 +1,6 @@
 # This is the main script to start the application for our Neural Image Segmentation project
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import json
 import warnings
 import sys
@@ -12,9 +14,6 @@ from postImgProc.alg import *
 import pyqtgraph as pg
 from skimage.morphology import flood_fill
 
-import os
-
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 THRESHOLD0 = 40
 THRESHOLD1 = 75

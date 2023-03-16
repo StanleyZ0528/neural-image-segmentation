@@ -67,10 +67,10 @@ class ImageViewer(QtWidgets.QGraphicsView):
     def wheelEvent(self, event):
         if self.hasPhoto():
             if event.angleDelta().y() > 0:
-                factor = 1.25
+                factor = 1.1
                 self._zoom += 1
             else:
-                factor = 0.8
+                factor = 0.9
                 self._zoom -= 1
             if self._zoom > 0:
                 self.scale(factor, factor)
