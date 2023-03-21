@@ -1,7 +1,7 @@
 import cv2
 import math
 
-CLOSE = 8
+CLOSE = 4
 
 
 def readImg(path):

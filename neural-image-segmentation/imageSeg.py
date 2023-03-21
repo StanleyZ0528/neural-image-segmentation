@@ -1,6 +1,4 @@
 # This is the main script to start the application for our Neural Image Segmentation project
-import os
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import json
 import warnings
 import sys
@@ -14,13 +12,17 @@ from postImgProc.alg import *
 import pyqtgraph as pg
 from skimage.morphology import flood_fill
 
+import os
+import xlwt
+
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 THRESHOLD0 = 40
 THRESHOLD1 = 75
 THRESHOLD2 = 100
 THRESHOLD3 = 150
 
-TYPICALCELLAREA = 3000
+TYPICALCELLAREA = 1200 # Approximation from 20*20*3.14
 
 
 class NpEncoder(json.JSONEncoder):
@@ -43,11 +45,11 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.ui.preButton.clicked.connect(self.pre_button_callback)
         self.ui.analyzeButton.clicked.connect(self.analyze_button_callback)
         self.ui.clearButton.clicked.connect(self.clear_button_callback)
-        self.ui.saveButton.clicked.connect(self.save_button_callback)
+        # self.ui.saveButton.clicked.connect(self.save_button_callback)
         self.ui.setFilterButton.clicked.connect(self.set_filter_callback)
         self.ui.getCellIndexButton.clicked.connect(self.get_cell_index_callback)
         self.ui.getAxonIndexButton.clicked.connect(self.get_axon_index_callback)
-        self.ui.exportButton.clicked.connect(self.export_button_callback)
+        # self.ui.exportButton.clicked.connect(self.export_button_callback)
         self.input_file_name = ""
         self.output_file_name = ""
         self.img = None
@@ -62,6 +64,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.chartView = ""
         self.segmentation_analysis = ""
         self.segmented_axons = []
+        self.pixmap_item = None
 
     def set_filter_callback(self):
         try:
@@ -146,7 +149,7 @@ class ImgSeg(QtWidgets.QMainWindow):
             msg.setText("Input cell index is not an integer")
             msg.show()
             return
-        if self.axon_index < 0 or self.cell_index >= len(self.segmented_axons):
+        if self.axon_index < 0 or self.axon_index >= len(self.segmented_axons):
             self.ui.cellIndexTextbox.setText("")
             msg = QtWidgets.QMessageBox(self)
             msg.setWindowTitle("Failed")
@@ -189,13 +192,12 @@ class ImgSeg(QtWidgets.QMainWindow):
 
     def export_button_callback(self):
         if self.segmentation_analysis != "":
-            info_dict = {}
-            info_dict["Filtered Cell Clusters Count"] = self.segmentation_analysis.nr_filtered_cell
-            info_dict["Cell Cluters Count"] = self.segmentation_analysis.nr_cell
+            # Write
+            info_dict = {"Filtered Cell Clusters Count": self.segmentation_analysis.nr_filtered_cell,
+                         "Cell Cluters Count": self.segmentation_analysis.nr_cell,
+                         "Axons Count": len(self.segmented_axons), "Segmented Axons": {}}
             # info_dict["Axons to Cells"] = self.segmentation_analysis.axons_to_cells
             # info_dict["Info List"] = self.segmentation_analysis.info_list
-            info_dict["Axons Count"] = len(self.segmented_axons)
-            info_dict["Segmented Axons"] = {}
             for i in range(len(self.segmented_axons)):
                 info_dict["Segmented Axons"][i] = self.segmentation_analysis.segmented_axons[i]
             # info_dict["Cell to Axons"] = self.segmentation_analysis.cell_axons_map
@@ -203,6 +205,15 @@ class ImgSeg(QtWidgets.QMainWindow):
             head_tail = os.path.split(self.input_file_name)
             with open("result/data/" + head_tail[1][:-4] + ".json", "w") as outfile:
                 json.dump(info_dict, outfile, cls=NpEncoder)
+
+            book = xlwt.Workbook()
+            sh = book.add_sheet(head_tail[1][:-4] + "-tracing")
+
+            x_desc = 'Tracing'
+            y_desc = 'Cluster'
+            z_desc = 'Length'
+            desc = [x_desc, y_desc, z_desc]
+
             msg = QtWidgets.QMessageBox(self)
             msg.setWindowTitle("Success")
             msg.setText("Analysis Data Successfully exported")
@@ -256,6 +267,7 @@ class ImgSeg(QtWidgets.QMainWindow):
 
             # display the result
             self.display_img(self.seg_image.astype(np.uint8))
+            self.save_button_callback()
         else:
             msg = QtWidgets.QMessageBox(self)
             msg.setWindowTitle("Failed")
@@ -285,12 +297,16 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.chartView = ""
         self.segmentation_analysis = ""
         self.segmented_axons = []
+        self.pixmap_item = None
 
     def analyze_button_callback(self):
         self.segmentation_analysis = SegmentationAnalysis()
-        self.segmented_axons = self.segmentation_analysis.run(self.input_file_name, self.img, self.cell_filter_size)
-
-        self.img_annotated = self.img.copy()
+        if self.seg_image is None:
+            self.segmented_axons = self.segmentation_analysis.run(self.input_file_name, self.img, self.cell_filter_size)
+            self.img_annotated = self.img.copy()
+        else:
+            self.segmented_axons = self.segmentation_analysis.run(self.input_file_name, self.seg_image, self.cell_filter_size)
+            self.img_annotated = self.seg_image.copy()
         # print(len(img_annotated), len(img_annotated[0]))
         height = len(self.img_annotated)
         width = len(self.img_annotated[0])
@@ -305,14 +321,30 @@ class ImgSeg(QtWidgets.QMainWindow):
                 # print(pixel)
                 self.img_annotated[max(pixel[0] - 3, 0): min(pixel[0] + 3, height - 1),
                 max(pixel[1] - 3, 0): min(pixel[1] + 3, width - 1)] = [255, 0, 0]
-        self.display_img(self.img_annotated)
+        self.display_img(self.img_annotated.astype(np.uint8))
+        # Save the Annotated image
+        try:
+            img = Image.fromarray(self.img_annotated.astype(np.uint8), mode='RGB')
+            head_tail = os.path.split(self.input_file_name)
+            if head_tail[1].startswith("result-"):
+                img.save("result/segmentation/" + head_tail[1][:-4] + "-annotated.png", format="png")
+            else:
+                img.save("result/segmentation/result-" + head_tail[1][:-4] + "-annotated.png", format="png")
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Success")
+            msg.setText("Annotated Image Successfully saved")
+            msg.show()
+        except:
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Failed")
+            msg.setText("Failed to save the annotated image")
+            msg.show()
+
         _translate = QtCore.QCoreApplication.translate
+        # Gather information for axon length/orientation
         length_dist = [0, 0, 0, 0, 0]
         total_length = 0
         axon_set = [[0] * 4 for i in range(5)]
-        rangeMax = 0
-        # length_range = ["20-50", "50-100", "100-150", "150-200", "200+"]
-        length_range = [20, THRESHOLD0, THRESHOLD1, THRESHOLD2, THRESHOLD3]
         for i in range(len(self.segmented_axons)):
             length = pixel_to_length(cal_dist(self.segmented_axons[i]))
             orientation = getOrientation(self.segmented_axons[i][0], self.segmented_axons[i][-1])
@@ -344,6 +376,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         for v in self.segmentation_analysis.cell_area_map.values():
             cell_count += (v / TYPICALCELLAREA).round()
             cell_area += v
+        # Display General information
         self.ui.info.setText(_translate("MainWindow",
                                         "General Information:\n"
                                         "Cell clusters count: " + str(self.segmentation_analysis.nr_filtered_cell) + "\n" +
@@ -351,6 +384,8 @@ class ImgSeg(QtWidgets.QMainWindow):
                                         "Estimated cells count: " + "{:.0f}".format(cell_count) + "\n" +
                                         "Total cell area: " + "{:.0f}".format(cell_area) + "µm^2\n" +
                                         "Average axon length: " + "{:.0f}".format(average_length) + "μm\n"))
+
+        # Create sets for different length ranges
         set0 = QtCharts.QBarSet("20-" + str(THRESHOLD0))
         set1 = QtCharts.QBarSet(str(THRESHOLD0) + "-" + str(THRESHOLD1))
         set2 = QtCharts.QBarSet(str(THRESHOLD1) + "-" + str(THRESHOLD2))
@@ -367,36 +402,31 @@ class ImgSeg(QtWidgets.QMainWindow):
         series.append(set2)
         series.append(set3)
         series.append(set4)
+        # Axon Length/Orientation Table
         axonLengthWidget = QtCharts.QChart()
         axonLengthWidget.addSeries(series)
         axonLengthWidget.setTitle("Axon Length/Orientation Distribution")
-        # axonLengthWidget.setLabel('left', 'Count', color="b", size="12pt")
-        # axonLengthWidget.setLabel('bottom', 'Length', color="b", size="12pt")
+        # X-axis for Orientation
         categories = ["N", "E", "S", "W"]
         axisX = QtCharts.QBarCategoryAxis()
         axisX.append(categories)
         axonLengthWidget.addAxis(axisX, QtCore.Qt.AlignmentFlag.AlignBottom)
-
+        # Y-axis for axon counts
         axisY = QtCharts.QValueAxis()
         axisY.setRange(0, length_range)
         axisY.setLabelFormat("%d")
+        # Plot graph properties
         axonLengthWidget.addAxis(axisY, QtCore.Qt.AlignmentFlag.AlignLeft)
-
         axonLengthWidget.legend().setVisible(True)
         axonLengthWidget.legend().adjustSize()
         axonLengthWidget.legend().setAlignment(QtCore.Qt.AlignmentFlag.AlignBottom)
-
-        # chartView.setRenderHint(QtGui.QPainter.RenderHints.Antialiasing)
         axonLengthWidget.resize(100, 75)
         axonLengthWidget.setBackgroundBrush(QtGui.QColor(140, 255, 255, 127))
-        # axonLengthWidget.setBackground((255, 255, 255, 0))
-        # axonLengthWidget.plot(length_range, length_dist, symbol='o', symbolPen=None, symbolSize=10,
-        #                  symbolBrush=(100, 100, 255, 255))
         self.chartView = QtCharts.QChartView(axonLengthWidget)
         self.chartView.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         self.ui.infoboxLayout.addWidget(self.chartView)
-        axonOrientationWidget = QtCharts.QPolarChart
         # self.display_img(im)
+        # self.export_button_callback()
 
     def eventFilter(self, source, event):
         if source is self.scene and event.type() == QtCore.QEvent.Type.GraphicsSceneMouseDoubleClick:
@@ -406,9 +436,6 @@ class ImgSeg(QtWidgets.QMainWindow):
             if brf.contains(lpf):
                 lp = lpf.toPoint()
                 self.get_cell_onclick_callback(lp.y(), lp.x())
-                # if self.seg_image is not None:
-                #     flood_fill(self.seg_image, (lp.x()-1,lp.y()-1,), np.array([255,0,0]))
-                #     print(self.seg_image)
         return super(ImgSeg, self).eventFilter(source, event)
 
 

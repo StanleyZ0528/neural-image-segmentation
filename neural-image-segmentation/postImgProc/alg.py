@@ -11,6 +11,7 @@ import astropy.units as u
 from .utils import *
 from scipy.ndimage.morphology import binary_dilation
 
+
 class SegmentationAnalysis:
     def __init__(self):
         self.axon_color = np.array([255, 129, 31])  # Axon color pixel mask
@@ -21,7 +22,7 @@ class SegmentationAnalysis:
         self.labeled_axon = []  # Labeled Axons with different numbers
         self.labeled_cell = []  # Labeled Cell Clusters with different numbers
         self.nr_cell = 0  # Total number of cell clusters
-        self.nr_filtered_cell = 0   # Total number of cell clusters after filtering
+        self.nr_filtered_cell = 0  # Total number of cell clusters after filtering
 
         self.axons_to_cells = {}
         self.fil = None
@@ -52,15 +53,15 @@ class SegmentationAnalysis:
         for i in range(len(self.labeled_cell)):
             for j in range(len(self.labeled_cell[0])):
                 if self.labeled_cell[i][j] != 0:
-                    self.cell_area_index[self.labeled_cell[i][j]-1].append([i, j])
+                    self.cell_area_index[self.labeled_cell[i][j] - 1].append([i, j])
         for i in range(1, self.nr_cell):
             area = np.isclose(i, self.labeled_cell).sum()
             if area < filter_size:
                 self.nr_filtered_cell -= 1
                 self.labeled_cell[self.labeled_cell == i] = 0
-                self.cell_area_index[self.labeled_cell[i][j]-1].clear()
+                self.cell_area_index[self.labeled_cell[i][j] - 1].clear()
             else:
-                self.cell_area_map[i] = area * 2.22 * 2.22
+                self.cell_area_map[i] = area / 2.22 / 2.22
 
         k = np.ones((3, 3), dtype=int)  # for 4-connected
         self.cell_boundary_mask = binary_dilation(self.labeled_cell == 0, k) & (self.labeled_cell != 0)
@@ -305,7 +306,7 @@ class SegmentationAnalysis:
     # return the pixel closest to (x, y) and whether it is an axon
     def clickOnPixel(self, x, y):
         r1, c1 = np.nonzero(self.labeled_cell)
-        min_idx1 = ((r1 - x)**2 + (c1 - y)**2).argmin()
+        min_idx1 = ((r1 - x) ** 2 + (c1 - y) ** 2).argmin()
 
         # r2, c2 = np.nonzero(self.labeled_cell)
         # min_idx2 = ((r2 - x)**2 + (c2 - y)**2).argmin()
