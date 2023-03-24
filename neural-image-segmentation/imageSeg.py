@@ -7,6 +7,7 @@ import warnings
 import sys
 import numpy as np
 from PyQt6 import QtWidgets, QtCore, QtGui, QtCharts
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 from PIL import Image, ImageQt
 from UI.ut import Ui_MainWindow
 from unet.unet_utils import gamma_correction, unet_predict
@@ -248,7 +249,6 @@ class ImgSeg(QtWidgets.QMainWindow):
         if self.img is not None:
             # conduct the process
             if self.gamma_image is None:
-                # print("??")
                 self.gamma_image = gamma_correction(self.img)
 
             # display the result
@@ -263,11 +263,11 @@ class ImgSeg(QtWidgets.QMainWindow):
         if self.gamma_image is not None:
             # conduct the process
             if self.seg_image is None:
-                self.seg_image = unet_predict(self.gamma_image)
-
-            # display the result
-            self.display_img(self.seg_image.astype(np.uint8))
-            self.save_button_callback()
+                self.run_task_unet(self.gamma_image)
+            else:
+                # display the old result
+                self.display_img(self.seg_image.astype(np.uint8))
+                self.save_button_callback()
         else:
             msg = QtWidgets.QMessageBox(self)
             msg.setWindowTitle("Failed")
@@ -438,6 +438,44 @@ class ImgSeg(QtWidgets.QMainWindow):
                 self.get_cell_onclick_callback(lp.y(), lp.x())
         return super(ImgSeg, self).eventFilter(source, event)
 
+    def run_task_unet(self, input_data):
+        self.thread = QThread()
+        self.worker = TaskThreadUnet(input_data)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run_unet)
+        self.worker.finished.connect(self.return_value)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        # self.worker.progress.connect(self.reportProgress)
+        self.ui.pushButton.setEnabled(False)
+        self.thread.start()
+        #
+        # self.thread.finished.connect(
+        #     self.ui.pushButton.setEnabled(True)
+        # )
+
+    def return_value(self, ret_value):
+        self.seg_image = ret_value
+        self.display_img(self.seg_image.astype(np.uint8))
+        self.save_button_callback()
+        self.ui.pushButton.setEnabled(True)
+
+
+class TaskThreadUnet(QObject):
+    finished = pyqtSignal(np.ndarray)
+    progress = pyqtSignal(int)
+
+    def __init__(self, input_message):
+        super(QObject, self).__init__()
+        self.message = input_message
+
+    def run_unet(self):
+        """Long-running task."""
+        ret_value = unet_predict(self.message)
+        # self.progress.emit('')
+        self.finished.emit(ret_value)
 
 if __name__ == '__main__':
     if not os.path.exists('./result'):
