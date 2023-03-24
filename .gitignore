@@ -27,6 +27,12 @@ var/
 # Unwanted folder
 neural-image-segmentation/data
 neural-image-segmentation/result
+neural-image-segmentation/unet/lightning_logs/*
+neural-image-segmentation/unet/image/*
+neural-image-segmentation/unet/mask/*
+
+# Unwanted DS_store
+*.DS_store
 
 # Trained Model
 *.ckpt
