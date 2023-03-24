@@ -1,4 +1,7 @@
 # This is the main script to start the application for our Neural Image Segmentation project
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 import json
 import warnings
 import sys
@@ -10,12 +13,8 @@ from unet.unet_utils import gamma_correction, unet_predict
 from postImgProc.utils import *
 from postImgProc.alg import *
 import pyqtgraph as pg
-from skimage.morphology import flood_fill
-
-import os
 import xlwt
 
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 THRESHOLD0 = 40
 THRESHOLD1 = 75
@@ -61,7 +60,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.cell_filter_size = 200
         self.cell_index = None
         self.axon_index = None
-        self.chartView = ""
+        self.chartView = None
         self.segmentation_analysis = ""
         self.segmented_axons = []
         self.pixmap_item = None
@@ -249,6 +248,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         if self.img is not None:
             # conduct the process
             if self.gamma_image is None:
+                # print("??")
                 self.gamma_image = gamma_correction(self.img)
 
             # display the result
@@ -281,8 +281,9 @@ class ImgSeg(QtWidgets.QMainWindow):
         _translate = QtCore.QCoreApplication.translate
         self.ui.info.setText(_translate("MainWindow", "General Information:"))
         self.ui.cellInfo.setText(_translate("MainWindow", "Cell Information:"))
-        self.ui.infoboxLayout.removeWidget(self.chartView)
-        self.chartView = ""
+        if self.chartView is not None:
+            self.ui.infoboxLayout.removeWidget(self.chartView)
+        self.chartView = None
         self.input_file_name = ""
         self.output_file_name = ""
         self.img = None
@@ -294,7 +295,6 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.cell_filter_size = 200
         self.cell_index = None
         self.axon_index = None
-        self.chartView = ""
         self.segmentation_analysis = ""
         self.segmented_axons = []
         self.pixmap_item = None
