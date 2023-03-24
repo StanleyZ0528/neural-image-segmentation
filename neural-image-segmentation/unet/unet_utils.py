@@ -10,7 +10,9 @@ from torchmetrics import JaccardIndex
 from .unet import UNet
 
 chk_path = "unet/saved_model_0.98.ckpt"  # saved best model
+small_chk_path = "unet/saved_small_model.ckpt"  # saved small model
 unet_model = UNet.load_from_checkpoint(chk_path)
+small_unet_model = UNet.load_from_checkpoint(small_chk_path)
 
 
 def gamma_correction(input_image):
@@ -76,7 +78,7 @@ def image_resample_row(input_image_dir, size = (4, 5), sample_size = 512):
             image_samples.append(cur_sample_np)
     return image_samples
 
-def unet_predict(input_image):
+def unet_predict(input_image, model="best"):
     input_image = input_image[:, :, 0]
     if len(input_image.shape) == 2:
         input_image = np.expand_dims(input_image, axis=-1)
@@ -85,7 +87,10 @@ def unet_predict(input_image):
         input_image = input_image / 255.
 
     input_image = torch.from_numpy(input_image).float()
-    output_image = unet_model(input_image[None, :]).argmax(dim=1)[0].detach().numpy()
+    if model == "best":
+        output_image = unet_model(input_image[None, :]).argmax(dim=1)[0].detach().numpy()
+    elif model == "small":
+        output_image = small_unet_model(input_image[None, :]).argmax(dim=1)[0].detach().numpy()
     result = np.zeros((output_image.shape[0], output_image.shape[1], 3), dtype=int)
 
     result[output_image == 0] = np.array([0, 0, 0])
@@ -163,7 +168,7 @@ if __name__ == '__main__':
     print("Performinng segmentation task....")
     masks = []
     for image in resampled_image:
-        masks.append(unet_predict(image))
+        masks.append(unet_predict(image, model="small"))
    
     print("Running mask_stitching....")
     complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
