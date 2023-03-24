@@ -7,10 +7,9 @@ import torch
 import matplotlib.pyplot as plt
 from torchmetrics import JaccardIndex
 
-from unet import UNet
+from .unet import UNet
 
 chk_path = "unet/saved_model_0.98.ckpt"  # saved best model
-chk_path = "saved_small_model.ckpt"
 unet_model = UNet.load_from_checkpoint(chk_path)
 
 
