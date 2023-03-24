@@ -20,7 +20,7 @@ class Ui_MainWindow(object):
         self.centralWidget = QtWidgets.QWidget(MainWindow)
         self.centralWidget.setObjectName("centralWidget")
         self.verticalLayoutWidget = QtWidgets.QWidget(self.centralWidget)
-        self.verticalLayoutWidget.setGeometry(QtCore.QRect(20, 10, 160, 140))
+        self.verticalLayoutWidget.setGeometry(QtCore.QRect(20, 10, 160, 170))
         self.verticalLayoutWidget.setObjectName("verticalLayoutWidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.verticalLayoutWidget)
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
@@ -32,9 +32,21 @@ class Ui_MainWindow(object):
         self.preButton = QtWidgets.QPushButton(self.verticalLayoutWidget)
         self.preButton.setObjectName("preButton")
         self.verticalLayout.addWidget(self.preButton)
+
+        # Add model selection drop-down menu
+        # self.verticalLayout.addLayout(self.horizonlLayout)
+        # self.modelSelectLabel = QtWidgets.QLabel(self.verticalLayoutWidget)
+        # self.modelSelectLabel.setText('Model:')
+
+        self.modelSelection = QtWidgets.QComboBox(self.verticalLayoutWidget)
+        self.modelSelection.addItems(['best_model', 'best_opt_model', 'small_model', 'small_opt_model'])
+        self.modelSelection.setObjectName("modelSelection")
+        self.verticalLayout.addWidget(self.modelSelection)
+
         self.pushButton = QtWidgets.QPushButton(self.verticalLayoutWidget)
         self.pushButton.setObjectName("pushButton")
         self.verticalLayout.addWidget(self.pushButton)
+
         self.analyzeButton = QtWidgets.QPushButton(self.verticalLayoutWidget)
         self.analyzeButton.setObjectName("analyzeButton")
         self.verticalLayout.addWidget(self.analyzeButton)

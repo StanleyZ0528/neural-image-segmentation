@@ -260,10 +260,11 @@ class ImgSeg(QtWidgets.QMainWindow):
             msg.show()
 
     def process_button_callback(self):
+        model_index = self.ui.modelSelection.currentIndex()
         if self.gamma_image is not None:
             # conduct the process
             if self.seg_image is None:
-                self.run_task_unet(self.gamma_image)
+                self.run_task_unet(self.gamma_image, model_index)
             else:
                 # display the old result
                 self.display_img(self.seg_image.astype(np.uint8))
@@ -438,9 +439,9 @@ class ImgSeg(QtWidgets.QMainWindow):
                 self.get_cell_onclick_callback(lp.y(), lp.x())
         return super(ImgSeg, self).eventFilter(source, event)
 
-    def run_task_unet(self, input_data):
+    def run_task_unet(self, input_data, model=0):
         self.thread = QThread()
-        self.worker = TaskThreadUnet(input_data)
+        self.worker = TaskThreadUnet(input_data, model)
         self.worker.moveToThread(self.thread)
 
         self.thread.started.connect(self.worker.run_unet)
@@ -467,13 +468,14 @@ class TaskThreadUnet(QObject):
     finished = pyqtSignal(np.ndarray)
     progress = pyqtSignal(int)
 
-    def __init__(self, input_message):
+    def __init__(self, input_message, model=0):
         super(QObject, self).__init__()
-        self.message = input_message
+        self.input_image = input_message
+        self.input_model = model
 
-    def run_unet(self):
+    def run_unet(self, model=0):
         """Long-running task."""
-        ret_value = unet_predict(self.message)
+        ret_value = unet_predict(self.input_image, self.input_model)
         # self.progress.emit('')
         self.finished.emit(ret_value)
 
