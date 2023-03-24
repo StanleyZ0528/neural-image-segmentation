@@ -58,6 +58,7 @@ class Ui_MainWindow(object):
         self.giflabel.setGeometry(QtCore.QRect(620, 40, 430, 440))
         self.giflabel.setMinimumSize(QtCore.QSize(430, 440))
         self.giflabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.giflabel.setStyleSheet("background-color:rgb(160, 160, 160)")
         self.giflabel.setObjectName("giflabel")
         self.horizonLayout.addWidget(self.giflabel)
         self.giflabel.hide()
