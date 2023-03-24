@@ -66,6 +66,9 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.segmented_axons = []
         self.pixmap_item = None
 
+        self.movie = QtGui.QMovie("UI/Spin.gif")
+        self.ui.giflabel.setMovie(self.movie)
+
     def set_filter_callback(self):
         try:
             self.cell_filter_size = int(self.ui.cellFilterTextbox.text())
@@ -162,7 +165,6 @@ class ImgSeg(QtWidgets.QMainWindow):
         for pixel in self.segmented_axons[self.axon_index]:
             img_annotated[max(pixel[0] - 3, 0): min(pixel[0] + 3, height),
             max(pixel[1] - 3, 0): min(pixel[1] + 3, width)] = [0, 255, 255]
-        print(cal_dist(self.segmented_axons[self.axon_index]))
         im = Image.fromarray(img_annotated.astype(np.uint8))
         im.save("result/result.png", format="png")
         pix = QtGui.QPixmap("result/result.png")
@@ -451,6 +453,9 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.thread.finished.connect(self.thread.deleteLater)
         # self.worker.progress.connect(self.reportProgress)
         self.ui.pushButton.setEnabled(False)
+        self.ui.graphicsView2.hide()
+        self.ui.giflabel.show()
+        self.movie.start()
         self.thread.start()
         #
         # self.thread.finished.connect(
@@ -462,6 +467,9 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.display_img(self.seg_image.astype(np.uint8))
         self.save_button_callback()
         self.ui.pushButton.setEnabled(True)
+        self.movie.stop()
+        self.ui.giflabel.hide()
+        self.ui.graphicsView2.show()
 
 
 class TaskThreadUnet(QObject):

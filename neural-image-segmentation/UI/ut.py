@@ -54,6 +54,14 @@ class Ui_MainWindow(object):
         self.graphicsView2.setObjectName("graphicsView2")
         self.horizonLayout.addWidget(self.graphicsView2)
 
+        self.giflabel = QtWidgets.QLabel(self.horizonLayoutWidget)
+        self.giflabel.setGeometry(QtCore.QRect(620, 40, 430, 440))
+        self.giflabel.setMinimumSize(QtCore.QSize(430, 440))
+        self.giflabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.giflabel.setObjectName("giflabel")
+        self.horizonLayout.addWidget(self.giflabel)
+        self.giflabel.hide()
+
         self.horizonLayoutWidget2 = QtWidgets.QWidget(self.centralWidget)
         self.horizonLayoutWidget2.setGeometry(QtCore.QRect(900, 490, 140, 40))
         self.horizonLayoutWidget2.setObjectName("verticalLayoutWidget2")
