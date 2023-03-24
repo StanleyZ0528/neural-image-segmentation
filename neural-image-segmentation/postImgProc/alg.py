@@ -82,7 +82,6 @@ class SegmentationAnalysis:
                         labeled_cell_np[i][j - 1] != 0:
                     if self.axon_adjacent[i][j] not in self.axons_to_cells.keys():
                         self.axons_to_cells[self.axon_adjacent[i][j]] = {}
-                    touching_cell = -1
                     if labeled_cell_np[i - 1][j] != 0:
                         touching_cell = labeled_cell_np[i - 1][j]
                     elif labeled_cell_np[i + 1][j] != 0:
@@ -99,7 +98,8 @@ class SegmentationAnalysis:
         self.fil.preprocess_image(flatten_percent=85)
         self.fil.create_mask(border_masking=True, verbose=False, use_existing_mask=True)
         self.fil.medskel(verbose=False)
-        self.fil.analyze_skeletons(branch_thresh=20 * u.pix, skel_thresh=10 * u.pix, prune_criteria='length')
+        # self.fil.analyze_skeletons(branch_thresh=40 * u.pix, skel_thresh=60 * u.pix, prune_criteria='length')
+        self.fil.analyze_skeletons(skel_thresh=60 * u.pix, prune_criteria='length')
 
     def fil_info(self):
         print(self.fil.lengths())
@@ -107,8 +107,6 @@ class SegmentationAnalysis:
 
     def analyze_axons(self):
         length_filament = len(self.fil.filaments)
-        figure(figsize=(10, 10), dpi=80)
-        # plt.imshow(fil.skeleton, cmap='gray')
         for i in range(length_filament):
             x = self.fil.filaments[i].pixel_coords[0][0]
             y = self.fil.filaments[i].pixel_coords[1][0]
@@ -116,7 +114,6 @@ class SegmentationAnalysis:
                 self.info_list.append({"touch_points": [], "end_points": [], "intersect_points": [], "dists": []})
                 continue
             touching_points = self.axons_to_cells[self.axon_adjacent[x][y]]
-            index = 0
             touch_points = []
             end_points = self.fil.filaments[i].end_pts
             dists = []
@@ -126,16 +123,12 @@ class SegmentationAnalysis:
                 touch_point = getTouchingPoint(self.fil.filaments[i], touching_coord)
                 touch_point.append(touching_key)
                 touch_points.append(touch_point)
-            for branch_array in self.fil.filaments[i].branch_pts():
-                prev = [-1, -1]
-                dist = cal_dist(branch_array)
-                dists.append(dist)
             for ele in self.fil.filaments[i].intersec_pts:
                 for e in ele:
                     intersect_points.append(e)
             self.info_list.append(
-                {"touch_points": touch_points, "end_points": end_points, "intersect_points": intersect_points,
-                 "dists": dists})
+                {"touch_points": touch_points, "end_points": end_points, "intersect_points": intersect_points})
+        self.displayInfoList()
 
     def displayInfoList(self):
         for info in self.info_list:
@@ -294,7 +287,6 @@ class SegmentationAnalysis:
     def run(self, path, img, cell_filter_size):
         self.img = img
         self.img_path = path
-        # print(np.unique(img.reshape(-1, 3), axis=0))
         self.separate_axon_and_cell()
         self.filter_cells(cell_filter_size)
         self.get_touching_dict()
@@ -307,12 +299,4 @@ class SegmentationAnalysis:
     def clickOnPixel(self, x, y):
         r1, c1 = np.nonzero(self.labeled_cell)
         min_idx1 = ((r1 - x) ** 2 + (c1 - y) ** 2).argmin()
-
-        # r2, c2 = np.nonzero(self.labeled_cell)
-        # min_idx2 = ((r2 - x)**2 + (c2 - y)**2).argmin()
-        # if (r1[min_idx1] - x)**2 + (c1[min_idx1] - y)**2 < (r2[min_idx2] - x)**2 + (c2[min_idx2] - y)**2:
-        #    return r1[min_idx1], c1[min_idx1], True
-        # if (r1[min_idx1] - x) ** 2 + (c1[min_idx1] - y) ** 2 > 1600:
-        #    return -1, -1, False
-        # return r1[min_idx1], c1[min_idx1], False
         return self.labeled_cell[r1[min_idx1]][c1[min_idx1]]
