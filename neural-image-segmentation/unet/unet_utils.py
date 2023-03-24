@@ -94,7 +94,7 @@ def unet_predict(input_image):
     result[output_image == 2] = np.array([255, 129, 31])
     result[output_image == 3] = np.array([255,  255,  255])
 
-    return (result, output_image)
+    return result
 
 def mask_stitching_loop(masks, overlap_size=128, shape=(4,5)):
     row_masks = []
@@ -163,15 +163,21 @@ if __name__ == '__main__':
 
     print("Performinng segmentation task....")
     masks = []
-    one_hot_masks = []
     for image in resampled_image:
-        temp = unet_predict(image)
-        masks.append(temp[0])
-        one_hot_masks.append(temp[1])
+        masks.append(unet_predict(image))
    
     print("Running mask_stitching....")
     complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
-    one_hot_complete_mask = mask_stitching(one_hot_masks, overlap_size=128, shape=(4, 5))
+    one_hot_complete_mask = np.zeros((mask.shape[0], mask.shape[1]), dtype=int)
+
+    red, green, blue = complete_mask[:,:,0], complete_mask[:,:,1], complete_mask[:,:,2]
+    background = (red == 0) & (green == 0) & (blue == 0)
+    cell = (red == 255) & (green == 0) & (blue == 255)
+    neurite = (red == 255) & (green == 129) & (blue == 31)
+    one_hot_complete_mask[:,:][background] = [0]
+    one_hot_complete_mask[:,:][cell] = [1]
+    one_hot_complete_mask[:,:][neurite] = [2]
+
     result = torch.from_numpy(complete_mask).long()
     one_hot_result = torch.from_numpy(one_hot_complete_mask).long()
 
