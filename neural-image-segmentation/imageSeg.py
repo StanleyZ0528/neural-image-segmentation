@@ -66,6 +66,9 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.segmented_axons = []
         self.pixmap_item = None
 
+        self.movie = QtGui.QMovie("UI/Spin.gif")
+        self.ui.giflabel.setMovie(self.movie)
+
     def set_filter_callback(self):
         try:
             self.cell_filter_size = int(self.ui.cellFilterTextbox.text())
@@ -162,7 +165,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         for pixel in self.segmented_axons[self.axon_index]:
             img_annotated[max(pixel[0] - 3, 0): min(pixel[0] + 3, height),
             max(pixel[1] - 3, 0): min(pixel[1] + 3, width)] = [0, 255, 255]
-        im = Image.fromarray(img_annotated)
+        im = Image.fromarray(img_annotated.astype(np.uint8))
         im.save("result/result.png", format="png")
         pix = QtGui.QPixmap("result/result.png")
         self.pixmap_item = self.scene.addPixmap(pix)
@@ -225,7 +228,7 @@ class ImgSeg(QtWidgets.QMainWindow):
             msg.show()
 
     def display_img(self, image):
-        img = Image.fromarray(image, mode='RGB')
+        img = Image.fromarray(image.astype(np.uint8), mode='RGB')
         img.save("result/result.png", format="png")
         pix = QtGui.QPixmap("result/result.png")
         self.pixmap_item = self.scene.addPixmap(pix)
@@ -349,7 +352,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         for i in range(len(self.segmented_axons)):
             length = pixel_to_length(cal_dist(self.segmented_axons[i]))
             orientation = getOrientation(self.segmented_axons[i][0], self.segmented_axons[i][-1])
-            total_length += length
+            total_length += pixel_to_length(self.segmentation_analysis.segmented_axons_dist[i])
             index = 0
             if length <= THRESHOLD0:
                 index = 0
@@ -451,6 +454,9 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.thread.finished.connect(self.thread.deleteLater)
         # self.worker.progress.connect(self.reportProgress)
         self.ui.pushButton.setEnabled(False)
+        self.ui.graphicsView2.hide()
+        self.ui.giflabel.show()
+        self.movie.start()
         self.thread.start()
         #
         # self.thread.finished.connect(
@@ -462,6 +468,9 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.display_img(self.seg_image.astype(np.uint8))
         self.save_button_callback()
         self.ui.pushButton.setEnabled(True)
+        self.movie.stop()
+        self.ui.giflabel.hide()
+        self.ui.graphicsView2.show()
 
 
 class TaskThreadUnet(QObject):

@@ -16,7 +16,7 @@ class ImageViewer(QtWidgets.QGraphicsView):
         self.setResizeAnchor(QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setBackgroundBrush(QtGui.QBrush(QtGui.QColor(100, 100, 100)))
+        self.setBackgroundBrush(QtGui.QBrush(QtGui.QColor(160, 160, 160)))
         self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
 
     def hasPhoto(self):
