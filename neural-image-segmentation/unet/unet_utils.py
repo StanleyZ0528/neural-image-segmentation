@@ -6,9 +6,10 @@ from PIL import Image
 import torch
 import matplotlib.pyplot as plt
 
-from .unet import UNet
+from unet import UNet
 
 chk_path = "unet/saved_model_0.98.ckpt"  # saved best model
+chk_path = "saved_small_model.ckpt"
 unet_model = UNet.load_from_checkpoint(chk_path)
 
 
@@ -75,7 +76,6 @@ def image_resample_row(input_image_dir, size = (4, 5), sample_size = 512):
             image_samples.append(cur_sample_np)
     return image_samples
 
-
 def unet_predict(input_image):
     input_image = input_image[:, :, 0]
     if len(input_image.shape) == 2:
@@ -95,7 +95,7 @@ def unet_predict(input_image):
 
     return result
 
-def mask_stitching(masks, overlap_size=128, shape=(4,5)):
+def mask_stitching_loop(masks, overlap_size=128, shape=(4,5)):
     row_masks = []
 
     for idx, mask in enumerate(masks):
@@ -110,6 +110,21 @@ def mask_stitching(masks, overlap_size=128, shape=(4,5)):
             row_masks[row] = np.hstack((row_masks[row], mask))
 
     complete_mask = np.vstack(row_masks)
+
+    return complete_mask
+
+def mask_stitching(masks, overlap_size=128, shape=(4,5)):
+    row_block = []
+    for i in range(0, len(masks), shape[1]):
+        if i == 15:
+            break
+        j = i + shape[1]
+        row_block.append(np.hstack(tuple(masks[i:j])))
+    
+    last_row = np.hstack(tuple(masks[15:20]))
+    row_block.append(last_row[overlap_size:,])
+
+    complete_mask = np.vstack(row_block)
 
     return complete_mask
 
@@ -138,7 +153,7 @@ if __name__ == '__main__':
     neurite = (red == 255) & (green == 129) & (blue == 31)
     mask[:,:,:3][background] = [250, 170, 30]
     mask[:,:,:3][cell] = [244, 35, 232]
-    mask[:,:,:3][neurite] = [119, 11, 3320]
+    mask[:,:,:3][neurite] = [119, 11, 32]
 
     mask = torch.from_numpy(mask).long()
     print(mask)
@@ -155,7 +170,17 @@ if __name__ == '__main__':
     complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
     result = torch.from_numpy(complete_mask).long()
 
-    val_acc    = torch.sum(result==mask).item()/(torch.numel(mask))
+    val_acc = torch.sum(result==mask).item()/(torch.numel(mask))
+    print("Calculate IoU.......")
+    color_dict = {
+            0: (250, 170,  30), # Background
+            1: (244,  35, 232), # Cell
+            2: (119,  11,  32)  # Neurite
+    }
+    mask_one_hot = np.zeros((mask.shape[0], mask.shape[1]), dtype=int)
+    # for i, cls in enumerate(color_dict):
+    #     mask_one_hot[:,:,i] = np.all(rgb_arr.reshape( (-1,3) ) == color_dict[i], axis=1).reshape(shape[:2])
+
     print("acc: ", val_acc)
     plt.imshow(complete_mask)
     plt.show()
