@@ -5,6 +5,7 @@ import numpy as np
 from PIL import Image
 import torch
 import matplotlib.pyplot as plt
+from torchmetrics import JaccardIndex
 
 from unet import UNet
 
@@ -93,7 +94,7 @@ def unet_predict(input_image):
     result[output_image == 2] = np.array([255, 129, 31])
     result[output_image == 3] = np.array([255,  255,  255])
 
-    return result
+    return (result, output_image)
 
 def mask_stitching_loop(masks, overlap_size=128, shape=(4,5)):
     row_masks = []
@@ -143,44 +144,51 @@ if __name__ == '__main__':
 
     mask = cv2.imread(mask_path)
     mask = np.array(mask)
-    # mask = torch.from_numpy(mask).long()
-    result = np.zeros((mask.shape[0], mask.shape[1]), dtype=int)
-    print(mask)
+
+    mask_one_hot = np.zeros((mask.shape[0], mask.shape[1]), dtype=int)
 
     red, green, blue = mask[:,:,0], mask[:,:,1], mask[:,:,2]
     background = (red == 0) & (green == 0) & (blue == 0)
     cell = (red == 255) & (green == 0) & (blue == 255)
-    neurite = (red == 255) & (green == 129) & (blue == 31)
-    mask[:,:,:3][background] = [250, 170, 30]
-    mask[:,:,:3][cell] = [244, 35, 232]
-    mask[:,:,:3][neurite] = [119, 11, 32]
+    neurite = (red == 0) & (green == 145) & (blue == 247)
+    mask_one_hot[:,:][background] = [0]
+    mask_one_hot[:,:][cell] = [1]
+    mask_one_hot[:,:][neurite] = [2]
+    mask_one_hot = torch.from_numpy(mask_one_hot)
 
     mask = torch.from_numpy(mask).long()
-    print(mask)
 
     print("Resampling image....")
     resampled_image = image_resample_row(img_path, size=(4, 5), sample_size=512)
 
     print("Performinng segmentation task....")
     masks = []
+    one_hot_masks = []
     for image in resampled_image:
-        masks.append(unet_predict(image))
+        temp = unet_predict(image)
+        masks.append(temp[0])
+        one_hot_masks.append(temp[1])
    
     print("Running mask_stitching....")
     complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
+    one_hot_complete_mask = mask_stitching(one_hot_masks, overlap_size=128, shape=(4, 5))
     result = torch.from_numpy(complete_mask).long()
+    one_hot_result = torch.from_numpy(one_hot_complete_mask).long()
 
-    val_acc = torch.sum(result==mask).item()/(torch.numel(mask))
     print("Calculate IoU.......")
-    color_dict = {
-            0: (250, 170,  30), # Background
-            1: (244,  35, 232), # Cell
-            2: (119,  11,  32)  # Neurite
-    }
-    mask_one_hot = np.zeros((mask.shape[0], mask.shape[1]), dtype=int)
-    # for i, cls in enumerate(color_dict):
-    #     mask_one_hot[:,:,i] = np.all(rgb_arr.reshape( (-1,3) ) == color_dict[i], axis=1).reshape(shape[:2])
+    jaccard = JaccardIndex(task="multiclass", num_classes=3)
+    iou = jaccard(one_hot_result, mask_one_hot)
+    print("iou: ", iou)
 
-    print("acc: ", val_acc)
+    print("Calculating accuracy..... ")
+    fg_mask = (mask_one_hot==1)
+    ne_mask = (mask_one_hot==2)
+    ne_result_mask = (one_hot_result==2)
+    val_acc = torch.sum(one_hot_result==mask_one_hot).item()/(torch.numel(mask_one_hot))
+    val_fg_acc = torch.sum(one_hot_result[fg_mask]==mask_one_hot[fg_mask]).item()/max(torch.sum(fg_mask).item(), 1e-7)
+    val_ne_acc = torch.sum(one_hot_result[ne_mask]==mask_one_hot[ne_mask]).item()/max(torch.sum(ne_mask).item(), 1e-7)
+
+    print("val_acc: ", val_acc, " val_fg_acc: ", val_fg_acc, " val_ne_acc: ", val_ne_acc)
+
     plt.imshow(complete_mask)
     plt.show()
