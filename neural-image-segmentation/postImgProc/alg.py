@@ -34,6 +34,7 @@ class SegmentationAnalysis:
         self.cell_axons_map = []
         self.cell_area_index = []
         self.cell_area_map = {}
+        self.segmented_axons_dist = []
 
     def readImg(self, path):
         self.img_path = path
@@ -98,8 +99,8 @@ class SegmentationAnalysis:
         self.fil.preprocess_image(flatten_percent=85)
         self.fil.create_mask(border_masking=True, verbose=False, use_existing_mask=True)
         self.fil.medskel(verbose=False)
-        # self.fil.analyze_skeletons(branch_thresh=40 * u.pix, skel_thresh=60 * u.pix, prune_criteria='length')
-        self.fil.analyze_skeletons(skel_thresh=60 * u.pix, prune_criteria='length')
+        self.fil.analyze_skeletons(branch_thresh=30 * u.pix, skel_thresh=50 * u.pix, prune_criteria='length')
+        # self.fil.analyze_skeletons(skel_thresh=10 * u.pix, prune_criteria='length')
 
     def fil_info(self):
         print(self.fil.lengths())
@@ -168,110 +169,86 @@ class SegmentationAnalysis:
                     touch_segments.add(len(line_segments))
                 if_touch = get_touch(line[-1], self.info_list[i]["touch_points"])
                 if if_touch != -1:
+                    line.reverse()  # Make sure for touch segments the first element is the touch point
                     touch_segments.add(len(line_segments))
                 line_segments.append(line)
         return line_segments, touch_segments
 
     def getSegmentedAxons(self):
-        for i in range(len(self.info_list)):
-            line_segments, touch_segments = self.getLineSegments(i)
-            length = len(line_segments)
-            # print(length, touch_segments)
-            line_used = [False for j in range(length)]
-            count = 0
-            itr = 0
-            for j in touch_segments:
-                line_used[j] = True
-                count = count + 1
-                self.segmented_axons.append(line_segments[j])
-            while count < length and itr < 10:
-                itr += 1
-                for j in range(length):
-                    if line_used[j]:
-                        continue
-                    pt_start_j = line_segments[j][0]
-                    pt_end_j = line_segments[j][-1]
-                    if (not arr_in(pt_start_j, self.info_list[i]["intersect_points"])) and (
-                            not arr_in(pt_end_j, self.info_list[i]["intersect_points"])):
-                        line_used[j] = True
-                        count = count + 1
-                        continue
-                    orientation_approx = 181
-                    assigned_seg = -1
-                    if arr_in(pt_start_j, self.info_list[i]["intersect_points"]):
-                        for k in range(len(self.segmented_axons)):
-                            sa = self.segmented_axons[k]
-                            if pt_start_j == sa[0]:
-                                ori1 = getOrientation(pt_start_j, pt_end_j)
-                                ori2 = getOrientation(sa[0], sa[-1])
-                                ori_approx = abs(ori1 - ori2) % 180
-                                if ori_approx > 90:
-                                    ori_approx = 180 - ori_approx
-                                # print(ori_approx)
-                                if ori_approx < orientation_approx:
-                                    orientation_approx = ori_approx
-                                    assigned_seg = k
-                            if pt_start_j == sa[-1]:
-                                ori1 = getOrientation(pt_start_j, pt_end_j)
-                                ori2 = getOrientation(sa[0], sa[-1])
-                                ori_approx = abs(ori1 - ori2) % 180
-                                if ori_approx > 90:
-                                    ori_approx = 180 - ori_approx
-                                # print(ori_approx)
-                                if ori_approx < orientation_approx:
-                                    orientation_approx = ori_approx
-                                    assigned_seg = k
-
-                    if arr_in(pt_end_j, self.info_list[i]["intersect_points"]):
-                        for k in range(len(self.segmented_axons)):
-                            sa = self.segmented_axons[k]
-                            if pt_end_j == sa[0]:
-                                ori1 = getOrientation(pt_start_j, pt_end_j)
-                                ori2 = getOrientation(sa[0], sa[-1])
-                                ori_approx = abs(ori1 - ori2) % 180
-                                if ori_approx > 90:
-                                    ori_approx = 180 - ori_approx
-                                # print(ori_approx)
-                                if ori_approx < orientation_approx:
-                                    orientation_approx = ori_approx
-                                    assigned_seg = k
-                            if pt_end_j == sa[-1]:
-                                ori1 = getOrientation(pt_start_j, pt_end_j)
-                                ori2 = getOrientation(sa[0], sa[-1])
-                                ori_approx = abs(ori1 - ori2) % 180
-                                if ori_approx > 90:
-                                    ori_approx = 180 - ori_approx
-                                # print(ori_approx)
-                                if ori_approx < orientation_approx:
-                                    orientation_approx = ori_approx
-                                    assigned_seg = k
-                    if assigned_seg != -1:
-                        count = count + 1
-                        line_used[j] = True
-                        if self.segmented_axons[assigned_seg][0] == pt_start_j:
-                            self.segmented_axons[assigned_seg].reverse()
-                        elif self.segmented_axons[assigned_seg][0] == pt_end_j:
-                            self.segmented_axons[assigned_seg].reverse()
-                            line_segments[j].reverse()
-                        elif self.segmented_axons[assigned_seg][-1] == pt_end_j:
-                            line_segments[j].reverse()
-                        self.segmented_axons[assigned_seg] = self.segmented_axons[assigned_seg] + line_segments[j]
-
-        index_to_remove = []
-        self.cell_axons_map = [[] for j in range(self.nr_cell)]
+        # Iterate over all the axon clusters
         all_touch_points = []
         for i in range(len(self.info_list)):
             for ele in self.info_list[i]["touch_points"]:
                 all_touch_points.append(ele)
+        for i in range(len(self.info_list)):
+            line_segments, touch_segments = self.getLineSegments(i)
+            length = len(line_segments)
+            print(length, touch_segments)
+            line_used = [False for j in range(length)]  # If the line segment is already used for another axon
+            count = 0   # Count the number of used line segments
+            for k in touch_segments:
+                if line_used[k]:
+                    continue
+                line_used[k] = True
+                count = count + 1
+                prev_end = line_segments[k][-1]
+                if arr_in(prev_end, all_touch_points):
+                    line_segments[k].reverse()
+                self.segmented_axons.append(line_segments[k])
+                self.segmented_axons_dist.append(cal_dist_ptp(line_segments[k]))
+                prev_start = line_segments[k][0]
+                prev_end = line_segments[k][-1]
+                found = 0
+                while count < length and found != -1:
+                    found = -1
+                    orientation_prox = 90    # Maximum proximity is 180
+                    for j in range(length):
+                        if line_used[j]:
+                            continue
+                        length_j = cal_dist(line_segments[j])
+                        pt_start_j = line_segments[j][0]
+                        pt_end_j = line_segments[j][-1]
+                        if pt_end_j[0] == prev_end[0] and pt_end_j[1] == prev_end[1]:
+                            line_segments[j].reverse()
+                            pt_start_j = line_segments[j][0]
+                            pt_end_j = line_segments[j][-1]
+
+                        if pt_start_j[0] != prev_end[0] or pt_start_j[1] != prev_end[1]:
+                            continue
+                        ori1 = getOrientation(pt_start_j, pt_end_j)
+                        ori2 = getOrientation(prev_start, prev_end)
+                        ori_prox = abs(ori1 - ori2)
+                        if ori_prox > 180:
+                            ori_prox = 360 - ori_prox
+                        if ori_prox < orientation_prox:
+                            orientation_prox = ori_prox
+                            found = j
+                    if found != -1:
+                        self.segmented_axons[-1] = self.segmented_axons[-1] + line_segments[found]
+                        self.segmented_axons_dist[-1] += cal_dist_ptp(line_segments[found])
+                        line_used[found] = True
+                        count += 1
+                        prev_start = line_segments[found][0]
+                        prev_end = line_segments[found][-1]
+                    if arr_in(prev_end, all_touch_points):
+                        break
+        # Setup for post analysis
+        index_to_remove = []
+        self.cell_axons_map = [[] for j in range(self.nr_cell)]
+
+        # Remove the axons that don't reach 20 µm
         for i in range(len(self.segmented_axons)):
-            dist = pixel_to_length(cal_dist(self.segmented_axons[i]))
-            if dist <= 20:
+            # dist = pixel_to_length(cal_dist(self.segmented_axons[i]))
+            if self.segmented_axons_dist[i] > 150:
+                print(self.segmented_axons[i])
+            if self.segmented_axons_dist[i] <= 20:
                 index_to_remove.append(i)
                 continue
         index_to_remove.reverse()
         for i in index_to_remove:
             del self.segmented_axons[i]
-
+            del self.segmented_axons_dist[i]
+        # Generate a show orientation array indicating axons that are connected between two cells
         for i in range(len(self.segmented_axons)):
             touch_index1 = get_touch(self.segmented_axons[i][0], all_touch_points)
             if touch_index1 != -1:
@@ -285,13 +262,21 @@ class SegmentationAnalysis:
                 self.show_orientation.append(True)
 
     def run(self, path, img, cell_filter_size):
+        # Load the loaded image from the application
         self.img = img
+        # Get the image path
         self.img_path = path
+        # Separate the axon and cell segmentation pixels
         self.separate_axon_and_cell()
+        # Filter the cell clusters by size
         self.filter_cells(cell_filter_size)
+        # Get the touching point of the cells and axons
         self.get_touching_dict()
+        # Apply the FilFinder library
         self.filter_axon()
+        # Get the information for analyzing axon segments
         self.analyze_axons()
+        # Run a graph algorithm to separate axon clusters into individual axons
         self.getSegmentedAxons()
         return self.segmented_axons
 

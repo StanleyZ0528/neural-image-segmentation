@@ -2,6 +2,7 @@ import cv2
 import math
 
 CLOSE = 4
+CURVECONST = 1.1
 
 
 def readImg(path):
@@ -38,10 +39,18 @@ def cal_dist(arr):
     # print(branch_array)
     for pt in arr:
         if prev[0] != pt[0] or prev[1] != pt[1]:
-            dist += math.sqrt((pt[0] - prev[0]) ** 2 + (pt[1] - prev[1]) ** 2)
+            add_dist = math.sqrt((pt[0] - prev[0]) ** 2 + (pt[1] - prev[1]) ** 2)
+            if add_dist > 20:
+                continue
+            dist += add_dist
             prev = pt
     dist += math.sqrt((arr[-1][0] - prev[0]) ** 2 + (arr[-1][1] - prev[1]) ** 2)
     return dist
+
+
+# Calculate Euclidean distance from start to end
+def cal_dist_ptp(arr):
+    return math.sqrt((arr[0][0] - arr[-1][0]) ** 2 + (arr[0][1] - arr[-1][1]) ** 2) * CURVECONST
 
 
 # Get the pixel that is closest to the touching cell on the skeleton
