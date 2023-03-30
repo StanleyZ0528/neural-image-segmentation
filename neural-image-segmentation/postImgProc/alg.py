@@ -129,7 +129,7 @@ class SegmentationAnalysis:
                     intersect_points.append(e)
             self.info_list.append(
                 {"touch_points": touch_points, "end_points": end_points, "intersect_points": intersect_points})
-        self.displayInfoList()
+        # self.displayInfoList()
 
     def displayInfoList(self):
         for info in self.info_list:
@@ -183,7 +183,7 @@ class SegmentationAnalysis:
         for i in range(len(self.info_list)):
             line_segments, touch_segments = self.getLineSegments(i)
             length = len(line_segments)
-            print(length, touch_segments)
+            # print(length, touch_segments)
             line_used = [False for j in range(length)]  # If the line segment is already used for another axon
             count = 0   # Count the number of used line segments
             for k in touch_segments:
@@ -239,8 +239,8 @@ class SegmentationAnalysis:
         # Remove the axons that don't reach 20 µm
         for i in range(len(self.segmented_axons)):
             # dist = pixel_to_length(cal_dist(self.segmented_axons[i]))
-            if self.segmented_axons_dist[i] > 150:
-                print(self.segmented_axons[i])
+            # if self.segmented_axons_dist[i] > 150:
+                # print(self.segmented_axons[i])
             if self.segmented_axons_dist[i] <= 20:
                 index_to_remove.append(i)
                 continue

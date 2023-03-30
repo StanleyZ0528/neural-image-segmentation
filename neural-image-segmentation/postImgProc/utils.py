@@ -2,7 +2,7 @@ import cv2
 import math
 
 CLOSE = 4
-CURVECONST = 1.1
+CURVECONST = 1.15
 
 
 def readImg(path):
