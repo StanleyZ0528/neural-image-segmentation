@@ -9,11 +9,16 @@ from torchmetrics import JaccardIndex
 import time
 
 from .unet import UNet
+# from unet import UNet
 
 chk_path = "unet/saved_model_0.98.ckpt"  # saved best model
 small_chk_path = "unet/saved_small_model.ckpt"  # saved small model
 optimized_path = "unet/optimized_model.pt" # saved optimized model
 optimized_small_path = "unet/optimized_small_model.pt" # saved optimized samll model
+# chk_path = "saved_model_0.98.ckpt"  # saved best model
+# small_chk_path = "saved_small_model.ckpt"  # saved small model
+# optimized_path = "optimized_model.pt" # saved optimized model
+# optimized_small_path = "optimized_small_model.pt" # saved optimized samll model
 unet_model = UNet.load_from_checkpoint(chk_path)
 small_unet_model = UNet.load_from_checkpoint(small_chk_path)
 optimized_model = torch.jit.load(optimized_path)
@@ -38,9 +43,9 @@ def gamma_correction(input_image):
 
 def image_resample(input_image, size = (4, 5), sample_size = 512):
     # crop the given image to targe samples
-    # img = cv2.imread(input_image_dir)
+    # img = cv2.imread(input_image)
     image_samples = []
-    # temp_np = np.array(img)
+    # input_image = np.array(img)
     # row
     for row in range(size[0]):
         # col
@@ -52,52 +57,43 @@ def image_resample(input_image, size = (4, 5), sample_size = 512):
             if r_stop > len(input_image):
                 r_stop = len(input_image)
                 r_start = r_stop-sample_size
-            
+
             cur_sample_np = input_image[r_start:r_stop, c_start:c_stop]
 
             # add results
             image_samples.append(cur_sample_np)
     return image_samples
 
-def unet_predict(input_image, model=0):
-    masks = []
-    small_images = [input_image]
-    if input_image.shape == (1920, 2560, 3):
-        print("Resampling image...")
-        small_images = image_resample(input_image)
-    print("Performing segmentation tasks on samples...")
+def unet_predict(img, model=0):
+    print("Performing segmentation tasks...")
     start = time.time()
 
-    for img in small_images:
-        img = img[:, :, 0]
-        if len(img.shape) == 2:
-            img = np.expand_dims(img, axis=-1)
-        img = img.transpose((2, 0, 1))
-        if img.max() > 1:
-            img = img / 255.
+    img = img[:, :, 0]
+    if len(img.shape) == 2:
+        img = np.expand_dims(img, axis=-1)
+    img = img.transpose((2, 0, 1))
+    if img.max() > 1:
+        img = img / 255.
 
-        img = torch.from_numpy(img).float()
-        if model == 1: # optimized model
-            output_image = optimized_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
-        elif model == 2: # small model
-            output_image = small_unet_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
-        elif model == 3: # optimized small model
-            output_image = optimized_small_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
-        else: # default to the best model for most accuracy result
-            output_image = unet_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
-        result = np.zeros((output_image.shape[0], output_image.shape[1], 3), dtype=int)
+    img = torch.from_numpy(img).float()
+    if model == 1: # optimized model
+        output_image = optimized_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
+    elif model == 2: # small model
+        output_image = small_unet_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
+    elif model == 3: # optimized small model
+        output_image = optimized_small_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
+    else: # default to the best model for most accuracy result
+        output_image = unet_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
+    result = np.zeros((output_image.shape[0], output_image.shape[1], 3), dtype=int)
 
-        result[output_image == 0] = np.array([0, 0, 0])
-        result[output_image == 1] = np.array([255, 0, 255])
-        result[output_image == 2] = np.array([255, 129, 31])
-        result[output_image == 3] = np.array([255,  255,  255])
-        
-        masks.append(result)
+    result[output_image == 0] = np.array([0, 0, 0])
+    result[output_image == 1] = np.array([255, 0, 255])
+    result[output_image == 2] = np.array([255, 129, 31])
+    result[output_image == 3] = np.array([255,  255,  255])
+
     end = time.time()
     print("Time Elapsed: ", end - start)
-    print("Stitching samples...")
-    complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
-    return complete_mask
+    return result
 
 # def mask_stitching_loop(masks, overlap_size=128, shape=(4,5)):
 #     row_masks = []
@@ -147,6 +143,8 @@ if __name__ == '__main__':
     img_path = '902-complete.tif'
     mask_path = '902-complete-mask.png'
 
+    img_path = 'Snap-573.tif'
+
     mask = cv2.imread(mask_path)
     mask = np.array(mask)
 
@@ -164,42 +162,82 @@ if __name__ == '__main__':
     mask = torch.from_numpy(mask).long()
 
     print("Resampling image....")
-    resampled_image = image_resample(img_path, size=(4, 5), sample_size=512)
-
-    print("Performinng segmentation task....")
-    masks = []
-    for image in resampled_image:
-        masks.append(unet_predict(image, model="small"))
-   
-    print("Running mask_stitching....")
-    complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
-    one_hot_complete_mask = np.zeros((mask.shape[0], mask.shape[1]), dtype=int)
-
-    red, green, blue = complete_mask[:,:,0], complete_mask[:,:,1], complete_mask[:,:,2]
-    background = (red == 0) & (green == 0) & (blue == 0)
-    cell = (red == 255) & (green == 0) & (blue == 255)
-    neurite = (red == 255) & (green == 129) & (blue == 31)
-    one_hot_complete_mask[:,:][background] = [0]
-    one_hot_complete_mask[:,:][cell] = [1]
-    one_hot_complete_mask[:,:][neurite] = [2]
-
-    result = torch.from_numpy(complete_mask).long()
-    one_hot_result = torch.from_numpy(one_hot_complete_mask).long()
-
-    print("Calculate IoU.......")
-    jaccard = JaccardIndex(task="multiclass", num_classes=3)
-    iou = jaccard(one_hot_result, mask_one_hot)
-    print("iou: ", iou)
-
-    print("Calculating accuracy..... ")
-    fg_mask = (mask_one_hot==1)
-    ne_mask = (mask_one_hot==2)
-    ne_result_mask = (one_hot_result==2)
-    val_acc = torch.sum(one_hot_result==mask_one_hot).item()/(torch.numel(mask_one_hot))
-    val_fg_acc = torch.sum(one_hot_result[fg_mask]==mask_one_hot[fg_mask]).item()/max(torch.sum(fg_mask).item(), 1e-7)
-    val_ne_acc = torch.sum(one_hot_result[ne_mask]==mask_one_hot[ne_mask]).item()/max(torch.sum(ne_mask).item(), 1e-7)
-
-    print("val_acc: ", val_acc, " val_fg_acc: ", val_fg_acc, " val_ne_acc: ", val_ne_acc)
-
-    plt.imshow(complete_mask)
+    img = cv2.imread(img_path)
+    img = np.array(img)
+    # img = img[:, :, 0]
+    # if len(img.shape) == 2:
+    #     img = np.expand_dims(img, axis=-1)
+    # img = img.transpose((2, 0, 1))
+    # if img.max() > 1:
+    #     img = img / 255.
+    # img = torch.from_numpy(img).float()
+    # output_image = unet_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
+    # result = np.zeros((output_image.shape[0], output_image.shape[1], 3), dtype=int)
+    # result[output_image == 0] = np.array([0, 0, 0])
+    # result[output_image == 1] = np.array([255, 0, 255])
+    # result[output_image == 2] = np.array([255, 129, 31])
+    # result[output_image == 3] = np.array([255,  255,  255])
+    # plt.imshow(result)
+    # plt.show()
+    # image_samples = []
+    # resampled_image = image_resample(img, size=(4, 5), sample_size=512)
+    # img = resampled_image[5]
+    img = img[:, :, 0]
+    if len(img.shape) == 2:
+        img = np.expand_dims(img, axis=-1)
+    img = img.transpose((2, 0, 1))
+    if img.max() > 1:
+        img = img / 255.
+    img = torch.from_numpy(img).float()
+    output_image = optimized_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
+    result = np.zeros((output_image.shape[0], output_image.shape[1], 3), dtype=int)
+    result[output_image == 0] = np.array([0, 0, 0])
+    result[output_image == 1] = np.array([255, 0, 255])
+    result[output_image == 2] = np.array([255, 129, 31])
+    result[output_image == 3] = np.array([255,  255,  255])
+    plt.imshow(result)
     plt.show()
+    # plt.imshow(resampled_image[5])
+    # plt.show()
+
+    # print("Performinng segmentation task....")
+    # masks = [] 
+    # complete_mask = unet_predict(resampled_image[5], model=0)
+    # plt.imshow(complete_mask)
+    # plt.show()
+    # plt.imshow(resampled_image[5])
+    # plt.show()
+    
+   
+    # print("Running mask_stitching....")
+    # complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
+    # one_hot_complete_mask = np.zeros((mask.shape[0], mask.shape[1]), dtype=int)
+
+    # red, green, blue = complete_mask[:,:,0], complete_mask[:,:,1], complete_mask[:,:,2]
+    # background = (red == 0) & (green == 0) & (blue == 0)
+    # cell = (red == 255) & (green == 0) & (blue == 255)
+    # neurite = (red == 255) & (green == 129) & (blue == 31)
+    # one_hot_complete_mask[:,:][background] = [0]
+    # one_hot_complete_mask[:,:][cell] = [1]
+    # one_hot_complete_mask[:,:][neurite] = [2]
+
+    # result = torch.from_numpy(complete_mask).long()
+    # one_hot_result = torch.from_numpy(one_hot_complete_mask).long()
+
+    # print("Calculate IoU.......")
+    # jaccard = JaccardIndex(task="multiclass", num_classes=3)
+    # iou = jaccard(one_hot_result, mask_one_hot)
+    # print("iou: ", iou)
+
+    # print("Calculating accuracy..... ")
+    # fg_mask = (mask_one_hot==1)
+    # ne_mask = (mask_one_hot==2)
+    # ne_result_mask = (one_hot_result==2)
+    # val_acc = torch.sum(one_hot_result==mask_one_hot).item()/(torch.numel(mask_one_hot))
+    # val_fg_acc = torch.sum(one_hot_result[fg_mask]==mask_one_hot[fg_mask]).item()/max(torch.sum(fg_mask).item(), 1e-7)
+    # val_ne_acc = torch.sum(one_hot_result[ne_mask]==mask_one_hot[ne_mask]).item()/max(torch.sum(ne_mask).item(), 1e-7)
+
+    # print("val_acc: ", val_acc, " val_fg_acc: ", val_fg_acc, " val_ne_acc: ", val_ne_acc)
+
+    # plt.imshow(complete_mask)
+    # plt.show()
