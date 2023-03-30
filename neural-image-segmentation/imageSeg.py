@@ -1,5 +1,6 @@
 # This is the main script to start the application for our Neural Image Segmentation project
 import os
+
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 import json
@@ -14,15 +15,17 @@ from unet.unet_utils import gamma_correction, unet_predict
 from postImgProc.utils import *
 from postImgProc.alg import *
 import pyqtgraph as pg
-import xlwt
-
+import pandas as pd
+import xlsxwriter
+import openpyxl
+from openpyxl.utils.dataframe import dataframe_to_rows
 
 THRESHOLD0 = 40
 THRESHOLD1 = 75
 THRESHOLD2 = 100
 THRESHOLD3 = 150
 
-TYPICALCELLAREA = 1200 # Approximation from 20*20*3.14
+TYPICALCELLAREA = 1200  # Approximation from 20*20*3.14
 
 
 class NpEncoder(json.JSONEncoder):
@@ -127,8 +130,8 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.ui.cellInfo.setText(_translate("MainWindow", "Cell Information:"))
         self.display_img(img_annotated)
         cell_index_str = ""
-        length = len(self.segmentation_analysis.cell_axons_map[self.cell_index-1])
-        for i in self.segmentation_analysis.cell_axons_map[self.cell_index-1]:
+        length = len(self.segmentation_analysis.cell_axons_map[self.cell_index - 1])
+        for i in self.segmentation_analysis.cell_axons_map[self.cell_index - 1]:
             cell_index_str += " " + str(i)
         self.ui.cellInfo.setText(_translate("MainWindow",
                                             "Cell Cluster Information:\n"
@@ -136,7 +139,8 @@ class ImgSeg(QtWidgets.QMainWindow):
                                                 self.cell_index) + "\nCell Area: " + "{:.2f}".format(
                                                 np.isclose(self.cell_index,
                                                            self.segmentation_analysis.labeled_cell).sum() / 2.22 / 2.22) +
-                                            "µm^2\nEstimated Cell Count: " + "{:.0f}".format((self.segmentation_analysis.cell_area_map[self.cell_index] / TYPICALCELLAREA).round()) + "\n"
+                                            "µm^2\nEstimated Cell Count: " +
+                                            "{:.0f}".format((self.segmentation_analysis.cell_area_map[self.cell_index] / TYPICALCELLAREA).round()) + "\n"
                                             "Connected Axons count: " + str(length) +"\n"
                                                                         "Connected Axon Indexes: " + cell_index_str + "\n"))
 
@@ -193,11 +197,11 @@ class ImgSeg(QtWidgets.QMainWindow):
             msg.setText("Save Failed")
             msg.show()
 
-    def export_button_callback(self):
+    def export_button_callback(self, cell_count, avg_length):
         if self.segmentation_analysis != "":
             # Write
             info_dict = {"Filtered Cell Clusters Count": self.segmentation_analysis.nr_filtered_cell,
-                         "Cell Cluters Count": self.segmentation_analysis.nr_cell,
+                         "Cell Clusters Count": self.segmentation_analysis.nr_cell,
                          "Axons Count": len(self.segmented_axons), "Segmented Axons": {}}
             # info_dict["Axons to Cells"] = self.segmentation_analysis.axons_to_cells
             # info_dict["Info List"] = self.segmentation_analysis.info_list
@@ -209,8 +213,53 @@ class ImgSeg(QtWidgets.QMainWindow):
             with open("result/data/" + head_tail[1][:-4] + ".json", "w") as outfile:
                 json.dump(info_dict, outfile, cls=NpEncoder)
 
-            book = xlwt.Workbook()
-            sh = book.add_sheet(head_tail[1][:-4] + "-tracing")
+            columns = ["Axon Index", "Axon Length"]
+            axon_indexes = []
+            connected_clusters = []
+            axon_lengths = []
+            for i in range(len(self.segmented_axons)):
+                axon_indexes.append(i+1)
+                axon_lengths.append(pixel_to_length(cal_dist(self.segmented_axons[i])))
+            df = pd.DataFrame(list(zip(axon_indexes, axon_lengths)),
+                              columns=columns)
+            writer = pd.ExcelWriter("result/data/" + head_tail[1][:-4] + ".xlsx", engine="xlsxwriter")
+            df.to_excel(writer, index=False, sheet_name='axon-tracing')
+            # Automatically adjust width of the columns
+            for column in df:
+                column_width = max(df[column].astype(str).map(len).max(), len(column))
+                col_idx = df.columns.get_loc(column)
+                writer.sheets['axon-tracing'].set_column(col_idx, col_idx, column_width)
+            writer.save()
+
+            # Writing to Summary Excel
+            columns = ["Image Name", "# of Cell Clusters", "Estimated # of Cells", "# of Axons", "Average Axon Length"]
+            image_names = [head_tail[1][:-4]]
+            cell_clusters = [self.segmentation_analysis.nr_filtered_cell]
+            cell_counts = [int(cell_count)]
+            axon_counts = [len(self.segmented_axons)]
+            axon_lengths = ["{:.2f}".format(avg_length)]
+            if os.path.isfile("result/data/summary.xlsx"):
+                df = pd.DataFrame(list(zip(image_names, cell_clusters, cell_counts, axon_counts, axon_lengths)),
+                                  columns=columns)
+                workbook = openpyxl.load_workbook("result/data/summary.xlsx")  # load workbook if already exists
+                sheet = workbook['cell_analysis']  # declare the active sheet
+
+                # append the dataframe results to the current excel file
+                for row in dataframe_to_rows(df, header=False, index=False):
+                    sheet.append(row)
+                workbook.save("result/data/summary.xlsx")  # save workbook
+                workbook.close()  # close workbook
+            else:
+                df = pd.DataFrame(list(zip(image_names, cell_clusters, cell_counts, axon_counts, axon_lengths)),
+                                  columns=columns)
+                writer = pd.ExcelWriter("result/data/summary.xlsx", engine="xlsxwriter")
+                df.to_excel(writer, index=False, sheet_name='cell_analysis')
+                # Automatically adjust width of the columns
+                for column in df:
+                    column_width = max(df[column].astype(str).map(len).max(), len(column))
+                    col_idx = df.columns.get_loc(column)
+                    writer.sheets['cell_analysis'].set_column(col_idx, col_idx, column_width)
+                writer.save()
 
             x_desc = 'Tracing'
             y_desc = 'Cluster'
@@ -309,7 +358,8 @@ class ImgSeg(QtWidgets.QMainWindow):
             self.segmented_axons = self.segmentation_analysis.run(self.input_file_name, self.img, self.cell_filter_size)
             self.img_annotated = self.img.copy()
         else:
-            self.segmented_axons = self.segmentation_analysis.run(self.input_file_name, self.seg_image, self.cell_filter_size)
+            self.segmented_axons = self.segmentation_analysis.run(self.input_file_name, self.seg_image,
+                                                                  self.cell_filter_size)
             self.img_annotated = self.seg_image.copy()
         # print(len(img_annotated), len(img_annotated[0]))
         height = len(self.img_annotated)
@@ -383,7 +433,8 @@ class ImgSeg(QtWidgets.QMainWindow):
         # Display General information
         self.ui.info.setText(_translate("MainWindow",
                                         "General Information:\n"
-                                        "Cell clusters count: " + str(self.segmentation_analysis.nr_filtered_cell) + "\n" +
+                                        "Cell clusters count: " + str(
+                                            self.segmentation_analysis.nr_filtered_cell) + "\n" +
                                         "Axons count: " + str(len(self.segmented_axons)) + "\n" +
                                         "Estimated cells count: " + "{:.0f}".format(cell_count) + "\n" +
                                         "Total cell area: " + "{:.0f}".format(cell_area) + "µm^2\n" +
@@ -430,7 +481,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.chartView.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         self.ui.infoboxLayout.addWidget(self.chartView)
         # self.display_img(im)
-        # self.export_button_callback()
+        self.export_button_callback(cell_count, average_length)
 
     def eventFilter(self, source, event):
         if source is self.scene and event.type() == QtCore.QEvent.Type.GraphicsSceneMouseDoubleClick:
@@ -487,6 +538,7 @@ class TaskThreadUnet(QObject):
         ret_value = unet_predict(self.input_image, self.input_model)
         # self.progress.emit('')
         self.finished.emit(ret_value)
+
 
 if __name__ == '__main__':
     if not os.path.exists('./result'):
