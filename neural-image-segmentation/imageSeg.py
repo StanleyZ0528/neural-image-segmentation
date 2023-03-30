@@ -15,7 +15,6 @@ from unet.unet_utils import gamma_correction, unet_predict
 from postImgProc.utils import *
 from postImgProc.alg import *
 import pyqtgraph as pg
-import xlwt
 import pandas as pd
 import xlsxwriter
 import openpyxl
@@ -214,9 +213,25 @@ class ImgSeg(QtWidgets.QMainWindow):
             with open("result/data/" + head_tail[1][:-4] + ".json", "w") as outfile:
                 json.dump(info_dict, outfile, cls=NpEncoder)
 
-            book = xlwt.Workbook()
-            sh = book.add_sheet(head_tail[1][:-4] + "-tracing")
+            columns = ["Axon Index", "Axon Length"]
+            axon_indexes = []
+            connected_clusters = []
+            axon_lengths = []
+            for i in range(len(self.segmented_axons)):
+                axon_indexes.append(i+1)
+                axon_lengths.append(pixel_to_length(cal_dist(self.segmented_axons[i])))
+            df = pd.DataFrame(list(zip(axon_indexes, axon_lengths)),
+                              columns=columns)
+            writer = pd.ExcelWriter("result/data/" + head_tail[1][:-4] + ".xlsx", engine="xlsxwriter")
+            df.to_excel(writer, index=False, sheet_name='axon-tracing')
+            # Automatically adjust width of the columns
+            for column in df:
+                column_width = max(df[column].astype(str).map(len).max(), len(column))
+                col_idx = df.columns.get_loc(column)
+                writer.sheets['axon-tracing'].set_column(col_idx, col_idx, column_width)
+            writer.save()
 
+            # Writing to Summary Excel
             columns = ["Image Name", "# of Cell Clusters", "Estimated # of Cells", "# of Axons", "Average Axon Length"]
             image_names = [head_tail[1][:-4]]
             cell_clusters = [self.segmentation_analysis.nr_filtered_cell]
@@ -245,8 +260,6 @@ class ImgSeg(QtWidgets.QMainWindow):
                     col_idx = df.columns.get_loc(column)
                     writer.sheets['cell_analysis'].set_column(col_idx, col_idx, column_width)
                 writer.save()
-                wb = xlsxwriter.Workbook("result/data/summary.xlsx")
-                print(wb.sheetnames)
 
             x_desc = 'Tracing'
             y_desc = 'Cluster'
