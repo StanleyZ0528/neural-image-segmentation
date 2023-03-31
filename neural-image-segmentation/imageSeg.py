@@ -26,7 +26,7 @@ THRESHOLD2 = 100
 THRESHOLD3 = 150
 
 TYPICALCELLAREA = 1200  # Approximation from 20*20*3.14
-
+CELLTHRESHOLD= [500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500]
 
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -61,10 +61,11 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.img_annotated = None
         self.scene = QtWidgets.QGraphicsScene(self)
         self.scene.installEventFilter(self)
-        self.cell_filter_size = 200
+        self.cell_filter_size = 500
         self.cell_index = None
         self.axon_index = None
         self.chartView = None
+        self.areaChartView = None
         self.segmentation_analysis = ""
         self.segmented_axons = []
         self.pixmap_item = None
@@ -133,6 +134,14 @@ class ImgSeg(QtWidgets.QMainWindow):
         length = len(self.segmentation_analysis.cell_axons_map[self.cell_index - 1])
         for i in self.segmentation_analysis.cell_axons_map[self.cell_index - 1]:
             cell_index_str += " " + str(i)
+            if self.segmentation_analysis.show_orientation[i]:
+                cell_index_str += " (" +\
+                                  degree_to_ori(getOrientation(self.segmented_axons[i][0], self.segmented_axons[i][-1])) + ")"
+            else:
+                cell_index_str += " (" +\
+                                  degree_to_ori(getOrientation(self.segmented_axons[i][0], self.segmented_axons[i][-1]))\
+                                  + "," +\
+                                  degree_to_ori(getOrientation(self.segmented_axons[i][-1], self.segmented_axons[i][0])) + ")"
         self.ui.cellInfo.setText(_translate("MainWindow",
                                             "Cell Cluster Information:\n"
                                             "Cell Cluster Index: " + str(
@@ -206,21 +215,29 @@ class ImgSeg(QtWidgets.QMainWindow):
             # info_dict["Axons to Cells"] = self.segmentation_analysis.axons_to_cells
             # info_dict["Info List"] = self.segmentation_analysis.info_list
             for i in range(len(self.segmented_axons)):
-                info_dict["Segmented Axons"][i] = self.segmentation_analysis.segmented_axons[i]
+                info_dict["Segmented Axons"][i] = self.segmented_axons[i]
             # info_dict["Cell to Axons"] = self.segmentation_analysis.cell_axons_map
             info_dict["Cell areas"] = self.segmentation_analysis.cell_area_map
             head_tail = os.path.split(self.input_file_name)
             with open("result/data/" + head_tail[1][:-4] + ".json", "w") as outfile:
                 json.dump(info_dict, outfile, cls=NpEncoder)
 
-            columns = ["Axon Index", "Axon Length"]
+            columns = ["Axon Index", "Axon Length", "Axon Orientation"]
             axon_indexes = []
             connected_clusters = []
             axon_lengths = []
+            axon_orientation = []
             for i in range(len(self.segmented_axons)):
-                axon_indexes.append(i+1)
-                axon_lengths.append(pixel_to_length(cal_dist(self.segmented_axons[i])))
-            df = pd.DataFrame(list(zip(axon_indexes, axon_lengths)),
+                axon_indexes.append(i)
+                axon_lengths.append(pixel_to_length(self.segmentation_analysis.segmented_axons_dist[i]))
+                if self.segmentation_analysis.show_orientation[i]:
+                    axon_orientation.append(
+                        degree_to_ori(getOrientation(self.segmented_axons[i][0], self.segmented_axons[i][-1])))
+                else:
+                    axon_orientation.append(
+                        degree_to_ori(getOrientation(self.segmented_axons[i][0], self.segmented_axons[i][-1])) + "," +
+                        degree_to_ori(getOrientation(self.segmented_axons[i][-1], self.segmented_axons[i][0])))
+            df = pd.DataFrame(list(zip(axon_indexes, axon_lengths, axon_orientation)),
                               columns=columns)
             writer = pd.ExcelWriter("result/data/" + head_tail[1][:-4] + ".xlsx", engine="xlsxwriter")
             df.to_excel(writer, index=False, sheet_name='axon-tracing')
@@ -237,7 +254,7 @@ class ImgSeg(QtWidgets.QMainWindow):
             cell_clusters = [self.segmentation_analysis.nr_filtered_cell]
             cell_counts = [int(cell_count)]
             axon_counts = [len(self.segmented_axons)]
-            axon_lengths = ["{:.2f}".format(avg_length)]
+            axon_lengths = [round(avg_length, 2)]
             if os.path.isfile("result/data/summary.xlsx"):
                 df = pd.DataFrame(list(zip(image_names, cell_clusters, cell_counts, axon_counts, axon_lengths)),
                                   columns=columns)
@@ -337,6 +354,9 @@ class ImgSeg(QtWidgets.QMainWindow):
         if self.chartView is not None:
             self.ui.infoboxLayout.removeWidget(self.chartView)
         self.chartView = None
+        if self.areaChartView is not None:
+            self.ui.infoboxLayout.removeWidget(self.areaChartView)
+        self.areaChartView = None
         self.input_file_name = ""
         self.output_file_name = ""
         self.img = None
@@ -345,7 +365,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.img_annotated = None
         self.scene = QtWidgets.QGraphicsScene(self)
         self.scene.installEventFilter(self)
-        self.cell_filter_size = 200
+        self.cell_filter_size = 500
         self.cell_index = None
         self.axon_index = None
         self.segmentation_analysis = ""
@@ -415,6 +435,8 @@ class ImgSeg(QtWidgets.QMainWindow):
             else:
                 index = 4
             length_dist[index] += 1
+            if not self.segmentation_analysis.show_orientation[i]:
+                continue
             if orientation <= 45 or orientation >= 315:
                 axon_set[index][0] += 1
             elif orientation <= 135:
@@ -437,7 +459,7 @@ class ImgSeg(QtWidgets.QMainWindow):
                                             self.segmentation_analysis.nr_filtered_cell) + "\n" +
                                         "Axons count: " + str(len(self.segmented_axons)) + "\n" +
                                         "Estimated cells count: " + "{:.0f}".format(cell_count) + "\n" +
-                                        "Total cell area: " + "{:.0f}".format(cell_area) + "µm^2\n" +
+                                        "Average cell area: " + "{:.0f}".format(cell_area / cell_count) + "µm^2\n" +
                                         "Average axon length: " + "{:.0f}".format(average_length) + "μm\n"))
 
         # Create sets for different length ranges
@@ -480,6 +502,41 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.chartView = QtCharts.QChartView(axonLengthWidget)
         self.chartView.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         self.ui.infoboxLayout.addWidget(self.chartView)
+        # Cell Area Distribution
+        cell_area_dist = [0] * 8
+        for area in self.segmentation_analysis.cell_area_map.values():
+            for j in range(8):
+                if CELLTHRESHOLD[j] <= area < CELLTHRESHOLD[j + 1]:
+                    cell_area_dist[j] += 1
+        area_series = QtCharts.QBarSeries()
+        area_set = QtCharts.QBarSet("Cell Area")
+        area_categories = []
+        for j in range(8):
+            area_set.append([cell_area_dist[j]])
+            area_categories.append(str(CELLTHRESHOLD[j]))
+        area_series.append(area_set)
+        # Axon Length/Orientation Table
+        areaDistWidget = QtCharts.QChart()
+        areaDistWidget.addSeries(area_series)
+        areaDistWidget.setTitle("Cell Area Distribution")
+        # X-axis for Orientation
+        axisX = QtCharts.QBarCategoryAxis()
+        axisX.append(area_categories)
+        areaDistWidget.addAxis(axisX, QtCore.Qt.AlignmentFlag.AlignBottom)
+        # Y-axis for axon counts
+        axisY = QtCharts.QValueAxis()
+        axisY.setRange(0, max(cell_area_dist))
+        axisY.setLabelFormat("%d")
+        # Plot graph properties
+        areaDistWidget.addAxis(axisY, QtCore.Qt.AlignmentFlag.AlignLeft)
+        areaDistWidget.legend().setVisible(True)
+        areaDistWidget.legend().adjustSize()
+        areaDistWidget.legend().setAlignment(QtCore.Qt.AlignmentFlag.AlignBottom)
+        areaDistWidget.resize(100, 75)
+        areaDistWidget.setBackgroundBrush(QtGui.QColor(140, 255, 255, 127))
+        self.areaChartView = QtCharts.QChartView(areaDistWidget)
+        self.areaChartView.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        self.ui.cellAreaInfoboxLayout.addWidget(self.areaChartView)
         # self.display_img(im)
         self.export_button_callback(cell_count, average_length)
 

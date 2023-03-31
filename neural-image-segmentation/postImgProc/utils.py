@@ -95,3 +95,13 @@ def close(ele1, ele2):
     dist = math.sqrt((ele1[0] - ele2[0]) ** 2 + (ele1[1] - ele2[1]) ** 2)
     return dist < CLOSE
 
+
+def degree_to_ori(deg):
+    if deg <= 45 or deg >= 315:
+        return "N"
+    elif deg <= 135:
+        return "E"
+    elif deg <= 225:
+        return "S"
+    else:
+        return "W"

@@ -99,7 +99,7 @@ class SegmentationAnalysis:
         self.fil.preprocess_image(flatten_percent=85)
         self.fil.create_mask(border_masking=True, verbose=False, use_existing_mask=True)
         self.fil.medskel(verbose=False)
-        self.fil.analyze_skeletons(branch_thresh=30 * u.pix, skel_thresh=50 * u.pix, prune_criteria='length')
+        self.fil.analyze_skeletons(branch_thresh=20 * u.pix, skel_thresh=30 * u.pix, prune_criteria='length')
         # self.fil.analyze_skeletons(skel_thresh=10 * u.pix, prune_criteria='length')
 
     def fil_info(self):
