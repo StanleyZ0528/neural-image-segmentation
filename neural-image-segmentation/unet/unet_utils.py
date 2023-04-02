@@ -84,24 +84,6 @@ def unet_predict(img, model=0):
     print("Time Elapsed: ", end - start)
     return result
 
-# def mask_stitching_loop(masks, overlap_size=128, shape=(4,5)):
-#     row_masks = []
-
-#     for idx, mask in enumerate(masks):
-#         row = idx // shape[1]
-#         col = idx - (row * shape[1])
-
-#         if row == shape[0] - 1:
-#             mask = mask[overlap_size:,]
-#         if len(row_masks) < row + 1:
-#             row_masks.append(mask)
-#         else:
-#             row_masks[row] = np.hstack((row_masks[row], mask))
-
-#     complete_mask = np.vstack(row_masks)
-
-#     return complete_mask
-
 def mask_stitching(masks, overlap_size=128, shape=(4,5)):
     if len(masks) == 1:
         return masks[0]
@@ -132,8 +114,6 @@ if __name__ == '__main__':
     img_path = '902-complete.tif'
     mask_path = '902-complete-mask.png'
 
-    img_path = 'Snap-761.tif'
-
     mask = cv2.imread(mask_path)
     mask = np.array(mask)
 
@@ -153,24 +133,7 @@ if __name__ == '__main__':
     print("Resampling image....")
     img = cv2.imread(img_path)
     img = np.array(img)
-    # img = img[:, :, 0]
-    # if len(img.shape) == 2:
-    #     img = np.expand_dims(img, axis=-1)
-    # img = img.transpose((2, 0, 1))
-    # if img.max() > 1:
-    #     img = img / 255.
-    # img = torch.from_numpy(img).float()
-    # output_image = unet_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
-    # result = np.zeros((output_image.shape[0], output_image.shape[1], 3), dtype=int)
-    # result[output_image == 0] = np.array([0, 0, 0])
-    # result[output_image == 1] = np.array([255, 0, 255])
-    # result[output_image == 2] = np.array([255, 129, 31])
-    # result[output_image == 3] = np.array([255,  255,  255])
-    # plt.imshow(result)
-    # plt.show()
-    # image_samples = []
     resampled_image = image_resample(img, size=(4, 5), sample_size=512)
-    # img = resampled_image[3]
     masks = []
     for img in resampled_image:
         img = img[:, :, 0]
@@ -187,50 +150,37 @@ if __name__ == '__main__':
         result[output_image == 2] = np.array([255, 129, 31])
         result[output_image == 3] = np.array([255,  255,  255])
         masks.append(result)
-    complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
-    plt.imshow(complete_mask)
-    plt.show()
-    # plt.imshow(resampled_image[3])
-    # plt.show()
-
-    # print("Performinng segmentation task....")
-    # masks = [] 
-    # complete_mask = unet_predict(resampled_image[5], model=0)
-    # plt.imshow(complete_mask)
-    # plt.show()
-    # plt.imshow(resampled_image[5])
-    # plt.show()
     
    
-    # print("Running mask_stitching....")
-    # complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
-    # one_hot_complete_mask = np.zeros((mask.shape[0], mask.shape[1]), dtype=int)
+    print("Running mask_stitching....")
+    complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
+    one_hot_complete_mask = np.zeros((mask.shape[0], mask.shape[1]), dtype=int)
 
-    # red, green, blue = complete_mask[:,:,0], complete_mask[:,:,1], complete_mask[:,:,2]
-    # background = (red == 0) & (green == 0) & (blue == 0)
-    # cell = (red == 255) & (green == 0) & (blue == 255)
-    # neurite = (red == 255) & (green == 129) & (blue == 31)
-    # one_hot_complete_mask[:,:][background] = [0]
-    # one_hot_complete_mask[:,:][cell] = [1]
-    # one_hot_complete_mask[:,:][neurite] = [2]
+    red, green, blue = complete_mask[:,:,0], complete_mask[:,:,1], complete_mask[:,:,2]
+    background = (red == 0) & (green == 0) & (blue == 0)
+    cell = (red == 255) & (green == 0) & (blue == 255)
+    neurite = (red == 255) & (green == 129) & (blue == 31)
+    one_hot_complete_mask[:,:][background] = [0]
+    one_hot_complete_mask[:,:][cell] = [1]
+    one_hot_complete_mask[:,:][neurite] = [2]
 
-    # result = torch.from_numpy(complete_mask).long()
-    # one_hot_result = torch.from_numpy(one_hot_complete_mask).long()
+    result = torch.from_numpy(complete_mask).long()
+    one_hot_result = torch.from_numpy(one_hot_complete_mask).long()
 
-    # print("Calculate IoU.......")
-    # jaccard = JaccardIndex(task="multiclass", num_classes=3)
-    # iou = jaccard(one_hot_result, mask_one_hot)
-    # print("iou: ", iou)
+    print("Calculate IoU.......")
+    jaccard = JaccardIndex(task="multiclass", num_classes=3)
+    iou = jaccard(one_hot_result, mask_one_hot)
+    print("iou: ", iou)
 
-    # print("Calculating accuracy..... ")
-    # fg_mask = (mask_one_hot==1)
-    # ne_mask = (mask_one_hot==2)
-    # ne_result_mask = (one_hot_result==2)
-    # val_acc = torch.sum(one_hot_result==mask_one_hot).item()/(torch.numel(mask_one_hot))
-    # val_fg_acc = torch.sum(one_hot_result[fg_mask]==mask_one_hot[fg_mask]).item()/max(torch.sum(fg_mask).item(), 1e-7)
-    # val_ne_acc = torch.sum(one_hot_result[ne_mask]==mask_one_hot[ne_mask]).item()/max(torch.sum(ne_mask).item(), 1e-7)
+    print("Calculating accuracy..... ")
+    fg_mask = (mask_one_hot==1)
+    ne_mask = (mask_one_hot==2)
+    ne_result_mask = (one_hot_result==2)
+    val_acc = torch.sum(one_hot_result==mask_one_hot).item()/(torch.numel(mask_one_hot))
+    val_fg_acc = torch.sum(one_hot_result[fg_mask]==mask_one_hot[fg_mask]).item()/max(torch.sum(fg_mask).item(), 1e-7)
+    val_ne_acc = torch.sum(one_hot_result[ne_mask]==mask_one_hot[ne_mask]).item()/max(torch.sum(ne_mask).item(), 1e-7)
 
-    # print("val_acc: ", val_acc, " val_fg_acc: ", val_fg_acc, " val_ne_acc: ", val_ne_acc)
+    print("val_acc: ", val_acc, " val_fg_acc: ", val_fg_acc, " val_ne_acc: ", val_ne_acc)
 
-    # plt.imshow(complete_mask)
-    # plt.show()
+    plt.imshow(complete_mask)
+    plt.show()
