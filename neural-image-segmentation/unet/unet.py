@@ -4,10 +4,12 @@ Based on lightning-bolts models
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torchvision.utils import make_grid
 
 from pytorch_lightning import LightningModule
 
 from typing import Optional, Sequence, Union
+from torchmetrics.classification import JaccardIndex
 
 class UNet_model(nn.Module):
     """
@@ -143,6 +145,7 @@ class SoftDiceLoss(torch.nn.Module):
             self.register_buffer("weight", weight)
         else:
             self.weight = None
+
     def forward(self, predictions: torch.Tensor, targets: torch.Tensor):
         """
         Computes SoftDice Loss
@@ -154,31 +157,37 @@ class SoftDiceLoss(torch.nn.Module):
         Returns:
             torch.Tensor: the computed loss value
         """
-        # number of classes for onehot
-        n_classes = predictions.shape[1]
+        predictions = F.softmax(predictions,1)
+        # target (N,W,H) -> One hot encoding (N,C,W,H)
         with torch.no_grad():
-            targets_onehot = F.one_hot(
-                targets.unsqueeze(1), num_classes=n_classes)
+            targets_onehot = torch.zeros(*predictions.shape, dtype=predictions.dtype, device=predictions.device)
+            targets_onehot.scatter_(1, targets.unsqueeze(1), 1.0)
         # sum over spatial dimensions
         dims = tuple(range(2, predictions.dim()))
 
         # compute nominator
-        nom = torch.sum(predictions * targets.float(), dim=dims)
+        if self.square_nom:
+            nom = torch.sum((predictions * targets_onehot) ** 2, dim=dims)
+        else:
+            nom = torch.sum(predictions * targets_onehot, dim=dims)
         nom = 2 * nom + self.smooth
 
         # compute denominator
-        denom = torch.sum(predictions ** 2 + targets ** 2, dim=dims) + self.smooth
+        if self.square_denom:
+            i_sum = torch.sum(predictions ** 2, dim=dims)
+            t_sum = torch.sum(targets_onehot ** 2, dim=dims)
+        else:
+            i_sum = torch.sum(predictions, dim=dims)
+            t_sum = torch.sum(targets_onehot, dim=dims)
+        denom = i_sum + t_sum + self.smooth
 
         # compute loss
         frac = nom / denom
-
         # apply weight for individual classesproperly
         if self.weight is not None:
             frac = self.weight * frac
-
         # average over classes
         frac = 1 - torch.mean(frac, dim=1)
-
         return frac
 
 
@@ -193,6 +202,9 @@ class UNet(LightningModule):
         bilinear: bool = False,
         loss_weight: Optional[Sequence[float]] = None,
         ignore_index: Optional[int] = None,
+        log_val_imgs: Optional[int] = 4,
+        dice_loss_ratio: Optional[float] = 0.5,
+        squared_dice: Optional[bool] = False,
     ):
         """Based on:
         https://github.com/Lightning-AI/lightning-bolts/blob/master/pl_bolts/models/vision/segmentation.py
@@ -206,6 +218,20 @@ class UNet(LightningModule):
         self.ignore_index = ignore_index
         self.bilinear = bilinear
         self.lr = lr
+        self.log_val_imgs = log_val_imgs
+        self.dice_loss_ratio = dice_loss_ratio
+        self.dice_loss = SoftDiceLoss(
+            # weight=loss_weight,
+            weight=None,
+            square_nom=squared_dice,
+            square_denom=squared_dice,
+            smooth=.001,
+            )
+        self.jaccardIndex = JaccardIndex(
+            task="multiclass",
+            num_classes=self.num_classes,
+            ignore_index=self.ignore_index
+            )
 
         if loss_weight:
             self.register_buffer("loss_weight", torch.tensor(loss_weight))
@@ -217,9 +243,15 @@ class UNet(LightningModule):
             features_start=self.features_start,
             bilinear=self.bilinear,
         )
-        self.dice_loss = SoftDiceLoss(loss_weight)
 
         self.save_hyperparameters()
+
+
+    def compute_loss(self, y_hat, y):
+        dice_loss = self.dice_loss(y_hat, y)
+        ce_loss = F.cross_entropy(y_hat, y, weight=self.loss_weight, ignore_index=self.ignore_index)
+        loss = self.dice_loss_ratio * dice_loss + (1 - self.dice_loss_ratio) * ce_loss
+        return loss, ce_loss, dice_loss
 
     def forward(self, x):
         return self.net(x)
@@ -227,23 +259,17 @@ class UNet(LightningModule):
     def training_step(self, batch, batch_nb):
         x, y = batch
         y_hat = self(x)
-        y_bar = y_hat.argmax(dim=1)
-        dice_loss = self.dice_loss(y_bar, y)
-        ce_loss = F.cross_entropy(y_hat, y, weight=self.loss_weight, ignore_index=self.ignore_index)
-        loss = (ce_loss + dice_loss) / 2
-        
-        log_dict = {"train_loss": loss.mean(), "ce_loss": ce_loss, "dice_loss": dice_loss}
+        loss, ce_loss, dice_loss = self.compute_loss(y_hat, y)
+        log_dict = {"train_loss": loss.mean(), "ce_loss": ce_loss.mean(), "dice_loss": dice_loss.mean()}
+        self.log_dict(log_dict,  prog_bar=False, logger=True)
         return {"loss": loss.mean(), "log": log_dict, "progress_bar": log_dict}
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
         y_bar = y_hat.argmax(dim=1)
-        ce_loss_val = F.cross_entropy(y_hat, y, weight=self.loss_weight, ignore_index=self.ignore_index)
-        dice_loss_val = self.dice_loss(y_bar, y)
-        loss_val = (dice_loss_val + ce_loss_val) / 2
-        
-        
+        loss_val, ce_loss, dice_loss = self.compute_loss(y_hat, y)
+
         fg_mask = (y==1).logical_or(y==2)
         ne_mask = (y==2)
         val_acc    = torch.sum(y_bar==y).item()/(torch.numel(y))
@@ -259,20 +285,29 @@ class UNet(LightningModule):
         metric_dict= {"val_loss":       loss_val.mean(),
                       "val_acc":        val_acc,
                       "val_fg_acc":     val_fg_acc,
-                      "val_ne_acc":     val_ne_acc
+                      "val_ne_acc":     val_ne_acc,
+                      "val_IoU":        self.jaccardIndex(y_bar, y),
+                      "val_dice_loss":  dice_loss.mean(),
                      }
         self.log_dict(metric_dict, prog_bar=True, logger=True)
+        if batch_idx == 0 and self.log_val_imgs:
+            if self.current_epoch == 0:
+                # Log Input and Labels
+                to_plot = make_grid(x[:self.log_val_imgs].cpu())
+                self.logger.experiment.add_image('val_x', to_plot, self.global_step)
+                to_plot = make_grid(self.batched_class_to_rgb(y[:self.log_val_imgs]))
+                self.logger.experiment.add_image('val_y', to_plot, self.global_step)
+            # Log prediction
+            to_plot = make_grid(self.batched_class_to_rgb(y_bar[:self.log_val_imgs]))
+            self.logger.experiment.add_image('val_y_bar', to_plot, self.global_step)
         return metric_dict
-    
+
     def test_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
         y_bar = y_hat.argmax(dim=1)
-        ce_loss_test = F.cross_entropy(y_hat, y, weight=self.loss_weight, ignore_index=self.ignore_index)
-        dice_loss_test = self.dice_loss(y_bar, y)
-        loss_test = (dice_loss_test + ce_loss_test) / 2
-        
-        
+        loss_test, *_ = self.compute_loss(y_hat, y)
+
         fg_mask = (y==1).logical_or(y==2)
         ne_mask = (y==2)
         test_acc    = torch.sum(y_bar==y).item()/(torch.numel(y))
@@ -288,7 +323,8 @@ class UNet(LightningModule):
         metric_dict= {"test_loss":       loss_test.mean(),
                       "test_acc":        test_acc,
                       "test_fg_acc":     test_fg_acc,
-                      "test_ne_acc":     test_ne_acc
+                      "test_ne_acc":     test_ne_acc,
+                      "test_IoU":        self.jaccardIndex(y_bar, y),
                       }
         self.log_dict(metric_dict, prog_bar=True, logger=True)
         return metric_dict
@@ -302,3 +338,17 @@ class UNet(LightningModule):
         opt = torch.optim.Adam(self.net.parameters(), lr=self.lr)
         sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=10)
         return [opt], [sch]
+
+    def batched_class_to_rgb(self, imgs):
+        '''
+        Custom method to colormap to bathced 1 channel images
+        imgs: Tensor [N, H, W]
+        returns: Tensor[N, 3, H, W]
+        '''
+        imgs_rgb = torch.stack(
+            [
+                imgs * 255 // self.num_classes,
+                255 - imgs * 255 // self.num_classes,
+                61 + imgs * 127 // self.num_classes
+            ], dim=1)
+        return imgs_rgb

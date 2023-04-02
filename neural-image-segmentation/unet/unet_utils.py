@@ -9,18 +9,9 @@ from torchmetrics import JaccardIndex
 import time
 
 from .unet import UNet
-# from unet import UNet
 
-chk_path = "unet/saved_model_0.98.ckpt"  # saved best model
-small_chk_path = "unet/saved_small_model.ckpt"  # saved small model
 optimized_path = "unet/optimized_model.pt" # saved optimized model
 optimized_small_path = "unet/optimized_small_model.pt" # saved optimized samll model
-# chk_path = "saved_model_0.98.ckpt"  # saved best model
-# small_chk_path = "saved_small_model.ckpt"  # saved small model
-# optimized_path = "optimized_model.pt" # saved optimized model
-# optimized_small_path = "optimized_small_model.pt" # saved optimized samll model
-unet_model = UNet.load_from_checkpoint(chk_path)
-small_unet_model = UNet.load_from_checkpoint(small_chk_path)
 optimized_model = torch.jit.load(optimized_path)
 optimized_small_model = torch.jit.load(optimized_small_path)
 
@@ -77,13 +68,11 @@ def unet_predict(img, model=0):
 
     img = torch.from_numpy(img).float()
     if model == 1: # optimized model
+        print("Using the large model")
         output_image = optimized_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
-    elif model == 2: # small model
-        output_image = small_unet_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
-    elif model == 3: # optimized small model
+    else: # optimized small model
+        print("Using the small model")
         output_image = optimized_small_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
-    else: # default to the best model for most accuracy result
-        output_image = unet_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
     result = np.zeros((output_image.shape[0], output_image.shape[1], 3), dtype=int)
 
     result[output_image == 0] = np.array([0, 0, 0])
@@ -143,7 +132,7 @@ if __name__ == '__main__':
     img_path = '902-complete.tif'
     mask_path = '902-complete-mask.png'
 
-    img_path = 'Snap-573.tif'
+    img_path = 'Snap-761.tif'
 
     mask = cv2.imread(mask_path)
     mask = np.array(mask)
@@ -180,24 +169,28 @@ if __name__ == '__main__':
     # plt.imshow(result)
     # plt.show()
     # image_samples = []
-    # resampled_image = image_resample(img, size=(4, 5), sample_size=512)
-    # img = resampled_image[5]
-    img = img[:, :, 0]
-    if len(img.shape) == 2:
-        img = np.expand_dims(img, axis=-1)
-    img = img.transpose((2, 0, 1))
-    if img.max() > 1:
-        img = img / 255.
-    img = torch.from_numpy(img).float()
-    output_image = optimized_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
-    result = np.zeros((output_image.shape[0], output_image.shape[1], 3), dtype=int)
-    result[output_image == 0] = np.array([0, 0, 0])
-    result[output_image == 1] = np.array([255, 0, 255])
-    result[output_image == 2] = np.array([255, 129, 31])
-    result[output_image == 3] = np.array([255,  255,  255])
-    plt.imshow(result)
+    resampled_image = image_resample(img, size=(4, 5), sample_size=512)
+    # img = resampled_image[3]
+    masks = []
+    for img in resampled_image:
+        img = img[:, :, 0]
+        if len(img.shape) == 2:
+            img = np.expand_dims(img, axis=-1)
+        img = img.transpose((2, 0, 1))
+        if img.max() > 1:
+            img = img / 255.
+        img = torch.from_numpy(img).float()
+        output_image = optimized_small_model(img[None, :]).argmax(dim=1)[0].detach().numpy()
+        result = np.zeros((output_image.shape[0], output_image.shape[1], 3), dtype=int)
+        result[output_image == 0] = np.array([0, 0, 0])
+        result[output_image == 1] = np.array([255, 0, 255])
+        result[output_image == 2] = np.array([255, 129, 31])
+        result[output_image == 3] = np.array([255,  255,  255])
+        masks.append(result)
+    complete_mask = mask_stitching(masks, overlap_size=128, shape=(4, 5))
+    plt.imshow(complete_mask)
     plt.show()
-    # plt.imshow(resampled_image[5])
+    # plt.imshow(resampled_image[3])
     # plt.show()
 
     # print("Performinng segmentation task....")

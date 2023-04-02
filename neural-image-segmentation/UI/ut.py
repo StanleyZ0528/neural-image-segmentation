@@ -39,7 +39,7 @@ class Ui_MainWindow(object):
         # self.modelSelectLabel.setText('Model:')
 
         self.modelSelection = QtWidgets.QComboBox(self.verticalLayoutWidget)
-        self.modelSelection.addItems(['best_model', 'best_opt_model', 'small_model', 'small_opt_model'])
+        self.modelSelection.addItems(['Small Model', 'Large Model'])
         self.modelSelection.setObjectName("modelSelection")
         self.verticalLayout.addWidget(self.modelSelection)
 
