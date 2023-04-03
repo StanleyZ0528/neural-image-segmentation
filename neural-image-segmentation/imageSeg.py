@@ -446,7 +446,7 @@ class ImgSeg(QtWidgets.QMainWindow):
             else:
                 axon_set[index][3] += 1
         length_range = max(max(x) for x in axon_set)
-        average_length = total_length / len(self.segmented_axons)
+        average_length = total_length / len(self.segmented_axons) if len(self.segmented_axons) != 0 else 0
         cell_count = 0
         cell_area = 0
         for v in self.segmentation_analysis.cell_area_map.values():
