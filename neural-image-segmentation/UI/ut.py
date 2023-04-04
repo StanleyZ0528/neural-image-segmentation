@@ -132,6 +132,7 @@ class Ui_MainWindow(object):
         self.info.setAlignment(QtCore.Qt.AlignmentFlag.AlignJustify)
         self.info.setObjectName("label")
         # self.info.setFont(QtGui.QFont('Segoe UI', 15))
+        self.info.setFont(QtGui.QFont('Times New Roman', 14))
         self.infoboxLayout.addWidget(self.info)
 
         self.cellInfoboxLayoutWidget = QtWidgets.QWidget(self.centralWidget)
@@ -143,7 +144,7 @@ class Ui_MainWindow(object):
         self.cellInfo = QtWidgets.QLabel(self.cellInfoboxLayoutWidget)
         self.cellInfo.setAlignment(QtCore.Qt.AlignmentFlag.AlignJustify)
         self.cellInfo.setObjectName("label")
-        # self.cellInfo.setFont(QtGui.QFont('Times', 15))
+        self.cellInfo.setFont(QtGui.QFont('Times New Roman', 14))
         self.cellInfoboxLayout.addWidget(self.cellInfo)
 
         self.userInputLayoutWidget = QtWidgets.QWidget(self.centralWidget)

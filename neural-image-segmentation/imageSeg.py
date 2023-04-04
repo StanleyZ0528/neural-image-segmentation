@@ -483,6 +483,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         axonLengthWidget = QtCharts.QChart()
         axonLengthWidget.addSeries(series)
         axonLengthWidget.setTitle("Axon Length/Orientation Distribution")
+        axonLengthWidget.setTitleFont(QtGui.QFont("New Times Roman", 12))
         # X-axis for Orientation
         categories = ["N", "E", "S", "W"]
         axisX = QtCharts.QBarCategoryAxis()
@@ -498,7 +499,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         axonLengthWidget.legend().adjustSize()
         axonLengthWidget.legend().setAlignment(QtCore.Qt.AlignmentFlag.AlignBottom)
         axonLengthWidget.resize(100, 75)
-        axonLengthWidget.setBackgroundBrush(QtGui.QColor(140, 255, 255, 127))
+        axonLengthWidget.setBackgroundBrush(QtGui.QColor(164, 172, 150, 255))
         self.chartView = QtCharts.QChartView(axonLengthWidget)
         self.chartView.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         self.ui.infoboxLayout.addWidget(self.chartView)
@@ -519,6 +520,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         areaDistWidget = QtCharts.QChart()
         areaDistWidget.addSeries(area_series)
         areaDistWidget.setTitle("Cell Area Distribution")
+        areaDistWidget.setTitleFont(QtGui.QFont("New Times Roman", 12))
         # X-axis for Orientation
         axisX = QtCharts.QBarCategoryAxis()
         axisX.append(area_categories)
@@ -533,7 +535,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         areaDistWidget.legend().adjustSize()
         areaDistWidget.legend().setAlignment(QtCore.Qt.AlignmentFlag.AlignBottom)
         areaDistWidget.resize(100, 75)
-        areaDistWidget.setBackgroundBrush(QtGui.QColor(140, 255, 255, 127))
+        areaDistWidget.setBackgroundBrush(QtGui.QColor(164, 172, 150, 255))
         self.areaChartView = QtCharts.QChartView(areaDistWidget)
         self.areaChartView.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         self.ui.cellAreaInfoboxLayout.addWidget(self.areaChartView)
