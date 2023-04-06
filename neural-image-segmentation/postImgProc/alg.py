@@ -241,7 +241,7 @@ class SegmentationAnalysis:
             # dist = pixel_to_length(cal_dist(self.segmented_axons[i]))
             # if self.segmented_axons_dist[i] > 150:
                 # print(self.segmented_axons[i])
-            if self.segmented_axons_dist[i] <= 20:
+            if pixel_to_length(self.segmented_axons_dist[i]) <= 20:
                 index_to_remove.append(i)
                 continue
         index_to_remove.reverse()

@@ -355,7 +355,7 @@ class ImgSeg(QtWidgets.QMainWindow):
             self.ui.infoboxLayout.removeWidget(self.chartView)
         self.chartView = None
         if self.areaChartView is not None:
-            self.ui.infoboxLayout.removeWidget(self.areaChartView)
+            self.ui.cellAreaInfoboxLayout.removeWidget(self.areaChartView)
         self.areaChartView = None
         self.input_file_name = ""
         self.output_file_name = ""
@@ -420,7 +420,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         total_length = 0
         axon_set = [[0] * 4 for i in range(5)]
         for i in range(len(self.segmented_axons)):
-            length = pixel_to_length(cal_dist(self.segmented_axons[i]))
+            length = pixel_to_length(self.segmentation_analysis.segmented_axons_dist[i])
             orientation = getOrientation(self.segmented_axons[i][0], self.segmented_axons[i][-1])
             total_length += pixel_to_length(self.segmentation_analysis.segmented_axons_dist[i])
             index = 0
