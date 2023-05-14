@@ -1,5 +1,6 @@
 import cv2
 import math
+import numpy as np
 
 CLOSE = 4
 CURVECONST = 1.15
@@ -87,6 +88,22 @@ def get_touch(ele, arr):
         if e[0] == ele[0] and e[1] == ele[1]:
             return e[2]
     return -1
+
+
+# Order the points along the skeleton inside a branch
+def order_pts(br_pts):
+    for i in range(1, len(br_pts)):
+        min_dist = (br_pts[i-1][0] - br_pts[i][0]) ** 2 + (br_pts[i-1][1] - br_pts[i][1]) ** 2
+        index = i
+        for j in range(i+1, len(br_pts)):
+            pts = br_pts[j]
+            new_dist = (br_pts[i-1][0] - pts[0]) ** 2 + (br_pts[i-1][1] - pts[1]) ** 2
+            if min_dist > new_dist:
+                min_dist = new_dist
+                index = j
+        if index != i:
+            br_pts[i], br_pts[index] = br_pts[index], br_pts[i]
+    return br_pts
 
 
 # Since the intersection point might not be included in the branch pixel array,

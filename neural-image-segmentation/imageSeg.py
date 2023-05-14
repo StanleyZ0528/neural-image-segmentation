@@ -111,7 +111,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         width = len(img_annotated[0])
         found = False
         # display the result
-        for p in self.segmentation_analysis.cell_area_index[self.cell_index - 1]:
+        for p in self.segmentation_analysis.cell_pixels[self.cell_index - 1]:
             i = p[0]
             j = p[1]
             found = True
@@ -142,16 +142,17 @@ class ImgSeg(QtWidgets.QMainWindow):
                                   degree_to_ori(getOrientation(self.segmented_axons[i][0], self.segmented_axons[i][-1]))\
                                   + "," +\
                                   degree_to_ori(getOrientation(self.segmented_axons[i][-1], self.segmented_axons[i][0])) + ")"
-        self.ui.cellInfo.setText(_translate("MainWindow",
-                                            "Cell Cluster Information:\n"
-                                            "Cell Cluster Index: " + str(
-                                                self.cell_index) + "\nCell Area: " + "{:.2f}".format(
-                                                np.isclose(self.cell_index,
-                                                           self.segmentation_analysis.labeled_cell).sum() / 2.22 / 2.22) +
-                                            "µm^2\nEstimated Cell Count: " +
-                                            "{:.0f}".format((self.segmentation_analysis.cell_area_map[self.cell_index] / TYPICALCELLAREA).round()) + "\n"
-                                            "Connected Axons count: " + str(length) +"\n"
-                                                                        "Connected Axon Indexes: " + cell_index_str + "\n"))
+        self.ui.cellInfo.setText(_translate(
+            "MainWindow",
+            "Cell Cluster Information:\n"
+            "Cell Cluster Index: " + str(
+                self.cell_index) + "\nCell Area: " + "{:.2f}".format(
+                np.isclose(self.cell_index,
+                           self.segmentation_analysis.labeled_cell).sum() / 2.22 / 2.22) +
+            "µm^2\nEstimated Cell Count: " +
+            "{:.0f}".format((self.segmentation_analysis.cell_area_map[self.cell_index] / TYPICALCELLAREA).round()) +
+            "\nConnected Axons count: " + str(length) + "\n"
+            "Connected Axon Indexes: " + cell_index_str + "\n"))
 
     def get_axon_index_callback(self):
         try:
