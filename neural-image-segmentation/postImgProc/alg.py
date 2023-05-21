@@ -117,7 +117,7 @@ class SegmentationAnalysis:
         self.fil.preprocess_image(flatten_percent=85)
         self.fil.create_mask(border_masking=True, verbose=False, use_existing_mask=True)
         self.fil.medskel(verbose=False)
-        self.fil.analyze_skeletons(branch_thresh=10 * u.pix, skel_thresh=10 * u.pix, prune_criteria='length', max_prune_iter=10)
+        self.fil.analyze_skeletons(branch_thresh=20 * u.pix, skel_thresh=30 * u.pix, prune_criteria='length', max_prune_iter=10)
         # self.fil.analyze_skeletons(skel_thresh=10 * u.pix, prune_criteria='length')
 
     def analyze_axons(self):
@@ -159,47 +159,60 @@ class SegmentationAnalysis:
         line_segments = []
         # The line segments that contain a touch point, subset of line segments
         touch_segments = set()
+        # print(len(self.fil.filaments[i].branch_pts()))
+        # print(self.info_list[i]["intersect_points"])
         for br_pts in self.fil.filaments[i].branch_pts():
-            line = []
+            start_found = False
             for k in range(len(br_pts)):
                 # Add the absolute coordinate to the relative coordinate
                 br_pts[k] = list(br_pts[k])
                 br_pts[k][0] += self.fil.filament_extents[i][0][0] - 1
                 br_pts[k][1] += self.fil.filament_extents[i][0][1] - 1
+                if not start_found:
+                    for end_pt in self.info_list[i]["end_points"]:
+                        if br_pts[k][0] == end_pt[0] and br_pts[k][1] == end_pt[1]:
+                            if k > 0:
+                                tem = br_pts[0].copy()
+                                br_pts[0] = br_pts[k].copy()
+                                br_pts[k] = tem
+                            start_found = True
+            index = 0
+            while not start_found and index < len(br_pts):
+                # Fix for intersection points not in the branch pixel array
+                for inter in self.info_list[i]["intersect_points"]:
+                    if close(br_pts[index], inter):
+                        if index != 0:
+                            tem = br_pts[0].copy()
+                            br_pts[0] = br_pts[index].copy()
+                            br_pts[index] = tem
+                            np.insert(br_pts, 0, np.array(list(inter)))
+                        start_found = True
+                        break
+                index += 1
+
+            line = []
+            # order the pixels inside the branch
             br_pts = order_pts(br_pts)
             # print(br_pts)
             for pt in br_pts:
-                # TODO: order the pixels inside the branch
                 line.append(pt)
-                if_touch = get_touch(pt, self.info_list[i]["touch_points"])
-                if if_touch != -1 and len(line) > 1:
-                    # Fix for intersection points not in the branch pixel array
-                    for inter in self.info_list[i]["intersect_points"]:
-                        if close(line[-1], inter):
-                            line.append(list(inter))
-                        if close(line[0], inter):
-                            line.insert(0, list(inter))
+                if_touch1 = get_touch(pt, self.info_list[i]["touch_points"])
+                if_touch2 = get_touch(line[0], self.info_list[i]["touch_points"])
+                if (if_touch1 != -1 or if_touch2 != -1) and len(line) > 1:
                     touch_segments.add(len(line_segments))
-                    if_touch = get_touch(line[0], self.info_list[i]["touch_points"])
-                    if if_touch != -1:
-                        touch_segments.add(len(line_segments))
-                    line_segments.append(line)
+                    line_segments.append(line.copy())
                     line = [pt]
             if len(line) > 1:
-                # Fix for intersection points not in the branch pixel array
-                for inter in self.info_list[i]["intersect_points"]:
-                    if close(line[-1], inter):
-                        line.append(list(inter))
-                    if close(line[0], inter):
-                        line.insert(0, list(inter))
-                if_touch = get_touch(line[0], self.info_list[i]["touch_points"])
-                if if_touch != -1:
-                    touch_segments.add(len(line_segments))
-                if_touch = get_touch(line[-1], self.info_list[i]["touch_points"])
-                if if_touch != -1:
+                if_touch1 = get_touch(line[0], self.info_list[i]["touch_points"])
+                if_touch2 = get_touch(line[-1], self.info_list[i]["touch_points"])
+                if if_touch2 != -1:
                     line.reverse()  # Make sure for touch segments the first element is the touch point
+                if if_touch1 != -1 or if_touch2 != -1:
                     touch_segments.add(len(line_segments))
-                line_segments.append(line)
+                line_segments.append(line.copy())
+
+        # print(line_segments)
+        # print(len(line_segments), touch_segments, self.info_list[i]["touch_points"])
         return line_segments, touch_segments
 
     def getSegmentedAxons(self):
@@ -230,28 +243,33 @@ class SegmentationAnalysis:
                 found = 0
                 while count < length and found != -1:
                     found = -1
-                    orientation_prox = 90    # Maximum proximity is 180
+                    orientation_prox = -1    # Maximum proximity is 2560
                     for j in range(length):
                         if line_used[j]:
                             continue
                         length_j = cal_dist(line_segments[j])
                         pt_start_j = line_segments[j][0]
                         pt_end_j = line_segments[j][-1]
-                        if pt_end_j[0] == prev_end[0] and pt_end_j[1] == prev_end[1]:
+                        # if pt_end_j[0] == prev_end[0] and pt_end_j[1] == prev_end[1]:
+                        if close(pt_end_j, prev_end):
                             line_segments[j].reverse()
                             pt_start_j = line_segments[j][0]
                             pt_end_j = line_segments[j][-1]
                         # Check if these two line segments are adjacent
-                        if pt_start_j[0] != prev_end[0] or pt_start_j[1] != prev_end[1]:
+                        # if pt_start_j[0] != prev_end[0] or pt_start_j[1] != prev_end[1] or arr_in(prev_end, all_touch_points):
+                        if not close(pt_start_j, prev_end) or arr_in(prev_end, all_touch_points):
                             continue
                         # Assign new branches based on the orientation affinity
                         # TODO: Use more involved algorithm for assigning branches
                         ori1 = getOrientation(pt_start_j, pt_end_j)
                         ori2 = getOrientation(prev_start, prev_end)
                         ori_prox = abs(ori1 - ori2)
+                        dist = cal_dist(line_segments[j])
+                        # dist = cal_dist_ptp(line_segments[j])
                         if ori_prox > 180:
                             ori_prox = 360 - ori_prox
-                        if ori_prox < orientation_prox:
+                        ori_prox = (1 + math.cos(math.radians(ori_prox))) * dist
+                        if ori_prox > orientation_prox:
                             orientation_prox = ori_prox
                             found = j
                     if found != -1:
@@ -262,8 +280,8 @@ class SegmentationAnalysis:
                         count += 1
                         prev_start = line_segments[found][0]
                         prev_end = line_segments[found][-1]
-                    if arr_in(prev_end, all_touch_points):
-                        break
+                    # if arr_in(prev_end, all_touch_points):
+                    #     break
         # Setup for post analysis
         index_to_remove = []
         self.cell_axons_map = [[] for j in range(self.nr_cell)]

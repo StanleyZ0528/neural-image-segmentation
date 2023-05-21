@@ -28,6 +28,7 @@ THRESHOLD3 = 150
 TYPICALCELLAREA = 1200  # Approximation from 20*20*3.14
 CELLTHRESHOLD= [500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500]
 
+
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.integer):
@@ -385,6 +386,13 @@ class ImgSeg(QtWidgets.QMainWindow):
         # print(len(img_annotated), len(img_annotated[0]))
         height = len(self.img_annotated)
         width = len(self.img_annotated[0])
+        # Display filaments on the picture for debug purpose
+        length_filament = len(self.segmentation_analysis.fil.filaments)
+        for i in range(length_filament):
+            for j in range(len(self.segmentation_analysis.fil.filaments[i].pixel_coords[0])):
+                x = self.segmentation_analysis.fil.filaments[i].pixel_coords[0][j]
+                y = self.segmentation_analysis.fil.filaments[i].pixel_coords[1][j]
+                self.img_annotated[x, y] = [255, 0, 255]
         # print(img_annotated[0][0])
         for i in range(height):
             for j in range(width):
@@ -396,6 +404,12 @@ class ImgSeg(QtWidgets.QMainWindow):
                 # print(pixel)
                 self.img_annotated[max(pixel[0] - 3, 0): min(pixel[0] + 3, height - 1),
                 max(pixel[1] - 3, 0): min(pixel[1] + 3, width - 1)] = [255, 0, 0]
+        for i in self.segmentation_analysis.info_list:
+            print(i)
+            for j in i["touch_points"]:
+                x = j[0]
+                y = j[1]
+                self.img_annotated[x, y] = [127, 127, 127]
         self.display_img(self.img_annotated.astype(np.uint8))
         # Save the Annotated image
         try:

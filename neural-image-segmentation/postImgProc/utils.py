@@ -62,11 +62,11 @@ def getTouchingPoint(filament, touch_coord):
     length = len(candidate_coords[0])
     x_closest = candidate_coords[0][0]
     y_closest = candidate_coords[1][0]
-    min_dist = math.sqrt((touch_coord[0] - x_closest) ** 2 + (touch_coord[1] - y_closest) ** 2)
+    min_dist = (touch_coord[0] - x_closest) ** 2 + (touch_coord[1] - y_closest) ** 2
     for i in range(1, length):
         x = candidate_coords[0][i]
         y = candidate_coords[1][i]
-        new_dist = math.sqrt((touch_coord[0] - x) ** 2 + (touch_coord[1] - y) ** 2)
+        new_dist = (touch_coord[0] - x) ** 2 + (touch_coord[1] - y) ** 2
         if new_dist < min_dist:
             x_closest = x
             y_closest = y
@@ -102,15 +102,17 @@ def order_pts(br_pts):
                 min_dist = new_dist
                 index = j
         if index != i:
-            br_pts[i], br_pts[index] = br_pts[index], br_pts[i]
+            tem = br_pts[i].copy()
+            br_pts[i] = br_pts[index].copy()
+            br_pts[index] = tem
     return br_pts
 
 
 # Since the intersection point might not be included in the branch pixel array,
 # this branch is trying to find out if one end point is an intersect point
 def close(ele1, ele2):
-    dist = math.sqrt((ele1[0] - ele2[0]) ** 2 + (ele1[1] - ele2[1]) ** 2)
-    return dist < CLOSE
+    dist = (ele1[0] - ele2[0]) ** 2 + (ele1[1] - ele2[1]) ** 2
+    return dist < CLOSE * CLOSE
 
 
 def degree_to_ori(deg):
