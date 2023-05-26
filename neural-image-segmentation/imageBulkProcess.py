@@ -132,6 +132,7 @@ class Thread(QtCore.QThread):
                         cell_area += v
                     info_dict = {"Filtered Cell Clusters Count": segmentation_analysis.nr_filtered_cell,
                                  "Cell Clusters Count": segmentation_analysis.nr_cell,
+                                 "Cell Clusters with Axon Count": segmentation_analysis.nr_filtered_cell_w_axon,
                                  "Axons Count": len(segmented_axons), "Segmented Axons": {}}
                     # info_dict["Axons to Cells"] = self.segmentation_analysis.axons_to_cells
                     # info_dict["Info List"] = self.segmentation_analysis.info_list

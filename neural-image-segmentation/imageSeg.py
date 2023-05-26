@@ -213,6 +213,7 @@ class ImgSeg(QtWidgets.QMainWindow):
             # Write
             info_dict = {"Filtered Cell Clusters Count": self.segmentation_analysis.nr_filtered_cell,
                          "Cell Clusters Count": self.segmentation_analysis.nr_cell,
+                         "Cell Clusters with Axon Count": self.segmentation_analysis.nr_filtered_cell_w_axon,
                          "Axons Count": len(self.segmented_axons), "Segmented Axons": {}}
             # info_dict["Axons to Cells"] = self.segmentation_analysis.axons_to_cells
             # info_dict["Info List"] = self.segmentation_analysis.info_list
@@ -472,7 +473,9 @@ class ImgSeg(QtWidgets.QMainWindow):
                                         "General Information:\n"
                                         "Cell clusters count: " + str(
                                             self.segmentation_analysis.nr_filtered_cell) + "\n" +
-                                        "Axons count: " + str(len(self.segmented_axons)) + "\n" +
+                                        "Cell Cluster with Axon Count: " +
+                                        str(self.segmentation_analysis.nr_filtered_cell_w_axon) +
+                                        "\nAxons count: " + str(len(self.segmented_axons)) + "\n" +
                                         "Estimated cells count: " + "{:.0f}".format(cell_count) + "\n" +
                                         "Average cell area: " + "{:.0f}".format(cell_area / cell_count) + "µm^2\n" +
                                         "Average axon length: " + "{:.0f}".format(average_length) + "μm\n"))
@@ -508,6 +511,8 @@ class ImgSeg(QtWidgets.QMainWindow):
         axisY = QtCharts.QValueAxis()
         axisY.setRange(0, length_range)
         axisY.setLabelFormat("%d")
+        axisY.setTickCount(min(5, length_range+1))
+        axisY.setTickInterval(max(1, int(length_range / 5)))
         # Plot graph properties
         axonLengthWidget.addAxis(axisY, QtCore.Qt.AlignmentFlag.AlignLeft)
         axonLengthWidget.legend().setVisible(True)
@@ -515,45 +520,11 @@ class ImgSeg(QtWidgets.QMainWindow):
         axonLengthWidget.legend().setAlignment(QtCore.Qt.AlignmentFlag.AlignBottom)
         axonLengthWidget.resize(100, 75)
         axonLengthWidget.setBackgroundBrush(QtGui.QColor(164, 172, 150, 255))
+        if self.chartView is not None:
+            self.ui.infoboxLayout.removeWidget(self.chartView)
         self.chartView = QtCharts.QChartView(axonLengthWidget)
         self.chartView.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         self.ui.infoboxLayout.addWidget(self.chartView)
-        # Cell Area Distribution
-        cell_area_dist = [0] * 8
-        for area in self.segmentation_analysis.cell_area_map.values():
-            for j in range(8):
-                if CELLTHRESHOLD[j] <= area < CELLTHRESHOLD[j + 1]:
-                    cell_area_dist[j] += 1
-        area_series = QtCharts.QBarSeries()
-        area_set = QtCharts.QBarSet("Cell Area")
-        area_categories = []
-        for j in range(8):
-            area_set.append([cell_area_dist[j]])
-            area_categories.append(str(CELLTHRESHOLD[j]))
-        area_series.append(area_set)
-        # Axon Length/Orientation Table
-        areaDistWidget = QtCharts.QChart()
-        areaDistWidget.addSeries(area_series)
-        areaDistWidget.setTitle("Cell Area Distribution")
-        areaDistWidget.setTitleFont(QtGui.QFont("New Times Roman", 12))
-        # X-axis for Orientation
-        axisX = QtCharts.QBarCategoryAxis()
-        axisX.append(area_categories)
-        areaDistWidget.addAxis(axisX, QtCore.Qt.AlignmentFlag.AlignBottom)
-        # Y-axis for axon counts
-        axisY = QtCharts.QValueAxis()
-        axisY.setRange(0, max(cell_area_dist))
-        axisY.setLabelFormat("%d")
-        # Plot graph properties
-        areaDistWidget.addAxis(axisY, QtCore.Qt.AlignmentFlag.AlignLeft)
-        areaDistWidget.legend().setVisible(True)
-        areaDistWidget.legend().adjustSize()
-        areaDistWidget.legend().setAlignment(QtCore.Qt.AlignmentFlag.AlignBottom)
-        areaDistWidget.resize(100, 75)
-        areaDistWidget.setBackgroundBrush(QtGui.QColor(164, 172, 150, 255))
-        self.areaChartView = QtCharts.QChartView(areaDistWidget)
-        self.areaChartView.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        self.ui.cellAreaInfoboxLayout.addWidget(self.areaChartView)
         # self.display_img(im)
         self.export_button_callback(cell_count, average_length)
 

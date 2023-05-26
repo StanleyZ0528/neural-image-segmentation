@@ -23,6 +23,7 @@ class SegmentationAnalysis:
         self.labeled_cell = []  # Labeled Cell Clusters with different numbers
         self.nr_cell = 0  # Total number of cell clusters
         self.nr_filtered_cell = 0  # Total number of cell clusters after filtering
+        self.nr_filtered_cell_w_axon = 0  # Total number of filtered cell cluster with axon
 
         # Returned Results
         self.axons_to_cells = {}    # Cells that are connected to each axon
@@ -66,7 +67,7 @@ class SegmentationAnalysis:
             for j in range(len(self.labeled_cell[0])):
                 if self.labeled_cell[i][j] != 0:
                     self.cell_pixels[self.labeled_cell[i][j] - 1].append([i, j])
-        for i in range(1, self.nr_cell):
+        for i in range(1, self.nr_cell + 1):
             area = np.isclose(i, self.labeled_cell).sum()
             # Check if the cell area meet the filtered size
             if area < filter_size:
@@ -310,6 +311,10 @@ class SegmentationAnalysis:
                 self.show_orientation.append(False)
             else:
                 self.show_orientation.append(True)
+        self.nr_filtered_cell_w_axon = 0
+        for i in self.cell_axons_map:
+            if i:
+                self.nr_filtered_cell_w_axon += 1
 
     def run(self, path, img, cell_filter_size):
         # Load the loaded image from the application
