@@ -18,7 +18,7 @@ THRESHOLD2 = 100
 THRESHOLD3 = 150
 
 TYPICALCELLAREA = 1200  # Approximation from 20*20*3.14
-CELL_FILTER_SIZE = 500
+CELL_FILTER_SIZE = 125
 
 
 class NpEncoder(json.JSONEncoder):

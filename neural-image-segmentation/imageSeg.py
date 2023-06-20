@@ -62,7 +62,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.img_annotated = None
         self.scene = QtWidgets.QGraphicsScene(self)
         self.scene.installEventFilter(self)
-        self.cell_filter_size = 500
+        self.cell_filter_size = 125
         self.cell_index = None
         self.axon_index = None
         self.chartView = None
@@ -368,7 +368,7 @@ class ImgSeg(QtWidgets.QMainWindow):
         self.img_annotated = None
         self.scene = QtWidgets.QGraphicsScene(self)
         self.scene.installEventFilter(self)
-        self.cell_filter_size = 500
+        self.cell_filter_size = 125
         self.cell_index = None
         self.axon_index = None
         self.segmentation_analysis = ""
