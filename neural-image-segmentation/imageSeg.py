@@ -497,10 +497,10 @@ class ImgSeg(QtWidgets.QMainWindow):
         series.append(set2)
         series.append(set3)
         series.append(set4)
-        # Axon Length/Orientation Table
+        # Neurite Length/Orientation Table
         axonLengthWidget = QtCharts.QChart()
         axonLengthWidget.addSeries(series)
-        axonLengthWidget.setTitle("Axon Length/Orientation Distribution")
+        axonLengthWidget.setTitle("Neurite Length/Orientation Distribution")
         axonLengthWidget.setTitleFont(QtGui.QFont("New Times Roman", 12))
         # X-axis for Orientation
         categories = ["N", "E", "S", "W"]
